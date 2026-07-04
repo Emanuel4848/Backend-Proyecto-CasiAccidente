@@ -1,34 +1,231 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model roles {
-  id_rol      Int       @id @default(autoincrement())
-  nombre      String    @unique
-  descripcion String?
-  activo      Boolean   @default(true)
-
-  usuarios    usuarios[]
+  id_rol             Int                  @id @default(autoincrement())
+  nombre             String?              @db.VarChar
+  descripcion        String?              @db.VarChar
+  activo             Boolean?
+  usuario_asignacion usuario_asignacion[]
+  usuario_roles      usuario_roles[]
 }
 
 model usuarios {
-  id_usuario Int      @id @default(autoincrement())
-  nombre     String
-  correo     String   @unique
-  password   String
-  id_rol     Int
-  activo     Boolean  @default(true)
-  creado_en  DateTime @default(now())
+  id_usuario                                                           Int                    @id @default(autoincrement())
+  nombre                                                               String?                @db.VarChar
+  correo                                                               String?                @unique @db.VarChar
+  password                                                             String?                @db.VarChar
+  activo                                                               Boolean?
+  creado_en                                                            DateTime?              @db.Timestamp(6)
+  acciones_correctivas                                                 acciones_correctivas[]
+  casi_accidentes_casi_accidentes_id_usuario_actualTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_actualTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_cierreTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_cierreTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_creacionTousuarios        casi_accidentes[]      @relation("casi_accidentes_id_usuario_creacionTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_gestion_controlTousuarios casi_accidentes[]      @relation("casi_accidentes_id_usuario_gestion_controlTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_prlTousuarios             casi_accidentes[]      @relation("casi_accidentes_id_usuario_prlTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_responsableTousuarios     casi_accidentes[]      @relation("casi_accidentes_id_usuario_responsableTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_symaTousuarios            casi_accidentes[]      @relation("casi_accidentes_id_usuario_symaTousuarios")
+  documentos                                                           documentos[]
+  historial                                                            historial[]
+  usuario_asignacion                                                   usuario_asignacion[]
+  usuario_roles                                                        usuario_roles[]
+}
 
-  rol        roles    @relation(fields: [id_rol], references: [id_rol])
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model acciones_correctivas {
+  id_accion              Int              @id @default(autoincrement())
+  id_casi_accidente      Int?
+  descripcion            String?
+  id_usuario_responsable Int?
+  prioridad              String?          @db.VarChar
+  porcentaje_avance      Int?
+  estado                 String?          @db.VarChar
+  fecha_compromiso       DateTime?        @db.Date
+  fecha_finalizacion     DateTime?        @db.Date
+  observaciones          String?
+  casi_accidentes        casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  usuarios               usuarios?        @relation(fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  documentos             documentos[]
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model brigadas {
+  id_brigada      Int               @id @default(autoincrement())
+  nombre          String?           @db.VarChar
+  id_region       Int?
+  id_proceso      Int?
+  id_contratista  Int?
+  activo          Boolean?
+  contratistas    contratistas?     @relation(fields: [id_contratista], references: [id_contratista], onDelete: NoAction, onUpdate: NoAction)
+  procesos        procesos?         @relation(fields: [id_proceso], references: [id_proceso], onDelete: NoAction, onUpdate: NoAction)
+  regiones        regiones?         @relation(fields: [id_region], references: [id_region], onDelete: NoAction, onUpdate: NoAction)
+  casi_accidentes casi_accidentes[]
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model casi_accidentes {
+  id_casi_accidente                                             Int                    @id @default(autoincrement())
+  numero_caso                                                   String?                @unique @db.VarChar
+  correlativo                                                   String?                @db.VarChar
+  titulo                                                        String?                @db.VarChar
+  descripcion                                                   String?
+  fecha_reporte                                                 DateTime?              @db.Timestamp(6)
+  id_region                                                     Int?
+  id_proceso                                                    Int?
+  id_brigada                                                    Int?
+  id_contratista                                                Int?
+  id_estado                                                     Int?
+  procede                                                       Boolean?
+  requiere_acciones                                             Boolean?
+  id_usuario_actual                                             Int?
+  id_usuario_prl                                                Int?
+  id_usuario_responsable                                        Int?
+  id_usuario_syma                                               Int?
+  id_usuario_gestion_control                                    Int?
+  id_usuario_cierre                                             Int?
+  fecha_cierre                                                  DateTime?              @db.Timestamp(6)
+  tipo_cierre                                                   String?                @db.VarChar
+  id_usuario_creacion                                           Int?
+  creado_en                                                     DateTime?              @db.Timestamp(6)
+  actualizado_en                                                DateTime?              @db.Timestamp(6)
+  acciones_correctivas                                          acciones_correctivas[]
+  brigadas                                                      brigadas?              @relation(fields: [id_brigada], references: [id_brigada], onDelete: NoAction, onUpdate: NoAction)
+  contratistas                                                  contratistas?          @relation(fields: [id_contratista], references: [id_contratista], onDelete: NoAction, onUpdate: NoAction)
+  estados                                                       estados?               @relation(fields: [id_estado], references: [id_estado], onDelete: NoAction, onUpdate: NoAction)
+  procesos                                                      procesos?              @relation(fields: [id_proceso], references: [id_proceso], onDelete: NoAction, onUpdate: NoAction)
+  regiones                                                      regiones?              @relation(fields: [id_region], references: [id_region], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_actualTousuarios          usuarios?              @relation("casi_accidentes_id_usuario_actualTousuarios", fields: [id_usuario_actual], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_cierreTousuarios          usuarios?              @relation("casi_accidentes_id_usuario_cierreTousuarios", fields: [id_usuario_cierre], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_creacionTousuarios        usuarios?              @relation("casi_accidentes_id_usuario_creacionTousuarios", fields: [id_usuario_creacion], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_gestion_controlTousuarios usuarios?              @relation("casi_accidentes_id_usuario_gestion_controlTousuarios", fields: [id_usuario_gestion_control], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_prlTousuarios             usuarios?              @relation("casi_accidentes_id_usuario_prlTousuarios", fields: [id_usuario_prl], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_responsableTousuarios     usuarios?              @relation("casi_accidentes_id_usuario_responsableTousuarios", fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_casi_accidentes_id_usuario_symaTousuarios            usuarios?              @relation("casi_accidentes_id_usuario_symaTousuarios", fields: [id_usuario_syma], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  documentos                                                    documentos[]
+  historial                                                     historial[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model contratistas {
+  id_contratista  Int               @id @default(autoincrement())
+  nombre          String?           @db.VarChar
+  correo          String?           @db.VarChar
+  telefono        String?           @db.VarChar
+  activo          Boolean?
+  brigadas        brigadas[]
+  casi_accidentes casi_accidentes[]
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model documentos {
+  id_documento         Int                   @id @default(autoincrement())
+  id_casi_accidente    Int?
+  id_tipo_documento    Int?
+  id_accion_correctiva Int?
+  nombre_archivo       String?               @db.VarChar
+  ruta_archivo         String?               @db.VarChar
+  descripcion          String?
+  version              Int?
+  id_usuario_subio     Int?
+  subido_en            DateTime?             @db.Timestamp(6)
+  acciones_correctivas acciones_correctivas? @relation(fields: [id_accion_correctiva], references: [id_accion], onDelete: NoAction, onUpdate: NoAction)
+  casi_accidentes      casi_accidentes?      @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  tipos_documento      tipos_documento?      @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction)
+  usuarios             usuarios?             @relation(fields: [id_usuario_subio], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model estados {
+  id_estado                                      Int               @id @default(autoincrement())
+  nombre                                         String?           @db.VarChar
+  descripcion                                    String?           @db.VarChar
+  orden                                          Int?
+  activo                                         Boolean?
+  casi_accidentes                                casi_accidentes[]
+  historial_historial_id_estado_destinoToestados historial[]       @relation("historial_id_estado_destinoToestados")
+  historial_historial_id_estado_origenToestados  historial[]       @relation("historial_id_estado_origenToestados")
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model historial {
+  id_historial                                 Int              @id @default(autoincrement())
+  id_casi_accidente                            Int?
+  id_usuario_accion                            Int?
+  id_estado_origen                             Int?
+  id_estado_destino                            Int?
+  accion                                       String?          @db.VarChar
+  comentario                                   String?
+  motivo                                       String?
+  requiere_correccion                          Boolean?
+  fecha                                        DateTime?        @db.Timestamp(6)
+  casi_accidentes                              casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  estados_historial_id_estado_destinoToestados estados?         @relation("historial_id_estado_destinoToestados", fields: [id_estado_destino], references: [id_estado], onDelete: NoAction, onUpdate: NoAction)
+  estados_historial_id_estado_origenToestados  estados?         @relation("historial_id_estado_origenToestados", fields: [id_estado_origen], references: [id_estado], onDelete: NoAction, onUpdate: NoAction)
+  usuarios                                     usuarios?        @relation(fields: [id_usuario_accion], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model procesos {
+  id_proceso         Int                  @id @default(autoincrement())
+  nombre             String?              @db.VarChar
+  descripcion        String?              @db.VarChar
+  activo             Boolean?
+  brigadas           brigadas[]
+  casi_accidentes    casi_accidentes[]
+  usuario_asignacion usuario_asignacion[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model regiones {
+  id_region          Int                  @id @default(autoincrement())
+  nombre             String?              @db.VarChar
+  descripcion        String?              @db.VarChar
+  activo             Boolean?
+  brigadas           brigadas[]
+  casi_accidentes    casi_accidentes[]
+  usuario_asignacion usuario_asignacion[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tipos_documento {
+  id_tipo_documento Int          @id @default(autoincrement())
+  nombre            String?      @db.VarChar
+  documentos        documentos[]
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuario_asignacion {
+  id_asignacion Int       @id @default(autoincrement())
+  id_usuario    Int?
+  id_rol        Int?
+  id_region     Int?
+  id_proceso    Int?
+  activo        Boolean?
+  procesos      procesos? @relation(fields: [id_proceso], references: [id_proceso], onDelete: NoAction, onUpdate: NoAction)
+  regiones      regiones? @relation(fields: [id_region], references: [id_region], onDelete: NoAction, onUpdate: NoAction)
+  roles         roles?    @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  usuarios      usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuario_roles {
+  id_usuario_rol Int       @id @default(autoincrement())
+  id_usuario     Int?
+  id_rol         Int?
+  roles          roles?    @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  usuarios       usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
