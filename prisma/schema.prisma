@@ -8,36 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model roles {
-  id_rol             Int                  @id @default(autoincrement())
-  nombre             String?              @db.VarChar
-  descripcion        String?              @db.VarChar
-  activo             Boolean?
-  usuario_asignacion usuario_asignacion[]
-  usuario_roles      usuario_roles[]
-}
-
-model usuarios {
-  id_usuario                                                           Int                    @id @default(autoincrement())
-  nombre                                                               String?                @db.VarChar
-  correo                                                               String?                @unique @db.VarChar
-  password                                                             String?                @db.VarChar
-  activo                                                               Boolean?
-  creado_en                                                            DateTime?              @db.Timestamp(6)
-  acciones_correctivas                                                 acciones_correctivas[]
-  casi_accidentes_casi_accidentes_id_usuario_actualTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_actualTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_cierreTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_cierreTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_creacionTousuarios        casi_accidentes[]      @relation("casi_accidentes_id_usuario_creacionTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_gestion_controlTousuarios casi_accidentes[]      @relation("casi_accidentes_id_usuario_gestion_controlTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_prlTousuarios             casi_accidentes[]      @relation("casi_accidentes_id_usuario_prlTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_responsableTousuarios     casi_accidentes[]      @relation("casi_accidentes_id_usuario_responsableTousuarios")
-  casi_accidentes_casi_accidentes_id_usuario_symaTousuarios            casi_accidentes[]      @relation("casi_accidentes_id_usuario_symaTousuarios")
-  documentos                                                           documentos[]
-  historial                                                            historial[]
-  usuario_asignacion                                                   usuario_asignacion[]
-  usuario_roles                                                        usuario_roles[]
-}
-
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model acciones_correctivas {
@@ -199,6 +169,16 @@ model regiones {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model roles {
+  id_rol             Int                  @id @default(autoincrement())
+  nombre             String?              @db.VarChar
+  descripcion        String?              @db.VarChar
+  activo             Boolean?
+  usuario_asignacion usuario_asignacion[]
+  usuario_roles      usuario_roles[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model tipos_documento {
   id_tipo_documento Int          @id @default(autoincrement())
   nombre            String?      @db.VarChar
@@ -228,4 +208,26 @@ model usuario_roles {
   id_rol         Int?
   roles          roles?    @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
   usuarios       usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model usuarios {
+  id_usuario                                                           Int                    @id @default(autoincrement())
+  nombre                                                               String?                @db.VarChar
+  correo                                                               String?                @unique @db.VarChar
+  password                                                             String?                @db.VarChar
+  activo                                                               Boolean?
+  creado_en                                                            DateTime?              @db.Timestamp(6)
+  acciones_correctivas                                                 acciones_correctivas[]
+  casi_accidentes_casi_accidentes_id_usuario_actualTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_actualTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_cierreTousuarios          casi_accidentes[]      @relation("casi_accidentes_id_usuario_cierreTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_creacionTousuarios        casi_accidentes[]      @relation("casi_accidentes_id_usuario_creacionTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_gestion_controlTousuarios casi_accidentes[]      @relation("casi_accidentes_id_usuario_gestion_controlTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_prlTousuarios             casi_accidentes[]      @relation("casi_accidentes_id_usuario_prlTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_responsableTousuarios     casi_accidentes[]      @relation("casi_accidentes_id_usuario_responsableTousuarios")
+  casi_accidentes_casi_accidentes_id_usuario_symaTousuarios            casi_accidentes[]      @relation("casi_accidentes_id_usuario_symaTousuarios")
+  documentos                                                           documentos[]
+  historial                                                            historial[]
+  usuario_asignacion                                                   usuario_asignacion[]
+  usuario_roles                                                        usuario_roles[]
 }
