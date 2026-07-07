@@ -5,7 +5,16 @@ export const authRepository = {
     return prisma.usuarios.findUnique({
       where: { correo },
       include: {
-        rol: true,
+        usuario_roles: {
+          where: {
+            roles: {
+              activo: true,
+            },
+          },
+          include: {
+            roles: true,
+          },
+        },
       },
     });
   },

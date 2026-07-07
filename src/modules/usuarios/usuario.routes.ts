@@ -1,9 +1,15 @@
 import { Router } from "express";
+import { authMiddleware } from "../../middlewares/auth.middleware";
+import { usuarioController } from "./usuario.controller";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
-  res.json({ message: "Usuarios module ready" });
-});
+router.use(authMiddleware);
+
+router.get("/", usuarioController.getAll);
+router.get("/:id", usuarioController.getById);
+router.post("/", usuarioController.create);
+router.put("/:id", usuarioController.update);
+router.delete("/:id", usuarioController.remove);
 
 export default router;

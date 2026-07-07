@@ -16,7 +16,7 @@ export const authController = {
       const data = await authService.login({ correo, password });
 
       return res.json({
-        message: "Inicio de sesión exitoso",
+        message: "Inicio de sesion exitoso",
         data,
       });
     } catch (error) {

@@ -18,6 +18,7 @@ type LoginInput = {
 
 export type AuthTokenPayload = {
   id_usuario: number;
+  id_rol: number;
   correo: string;
   rol: string;
 };
@@ -26,12 +27,18 @@ export const authService = {
   async login({ correo, password }: LoginInput) {
     const user = await authRepository.findUserByCorreo(correo);
 
-    if (!user) {
+    if (!user || !user.correo || !user.password) {
       throw new AuthError("Credenciales invalidas", 401);
     }
 
     if (!user.activo) {
       throw new AuthError("Usuario inactivo", 403);
+    }
+
+    const userRol = user.usuario_roles.find((usuarioRol) => usuarioRol.roles);
+
+    if (!userRol?.roles?.nombre) {
+      throw new AuthError("Usuario sin rol asignado", 403);
     }
 
     const passwordValida = await bcrypt.compare(password, user.password);
@@ -48,8 +55,9 @@ export const authService = {
 
     const payload: AuthTokenPayload = {
       id_usuario: user.id_usuario,
+      id_rol: userRol.roles.id_rol,
       correo: user.correo,
-      rol: user.rol.nombre,
+      rol: userRol.roles.nombre,
     };
 
     const token = jwt.sign(payload, jwtSecret, {
@@ -60,9 +68,10 @@ export const authService = {
       token,
       user: {
         id_usuario: user.id_usuario,
+        id_rol: userRol.roles.id_rol,
         nombre: user.nombre,
         correo: user.correo,
-        rol: user.rol.nombre,
+        rol: userRol.roles.nombre,
       },
     };
   },

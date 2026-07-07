@@ -1,9 +1,15 @@
 import { Router } from "express";
+import { authMiddleware } from "../../middlewares/auth.middleware";
+import { procesoController } from "./proceso.controller";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
-  res.json({ message: "Procesos module ready" });
-});
+router.use(authMiddleware);
+
+router.get("/", procesoController.getAll);
+router.get("/:id", procesoController.getById);
+router.post("/", procesoController.create);
+router.put("/:id", procesoController.update);
+router.delete("/:id", procesoController.remove);
 
 export default router;
