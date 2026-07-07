@@ -1,3 +1,7 @@
+import { rolRepository } from "./rol.repository";
+
 export const rolService = {
-  getAll: async () => ({ message: "Rol service ready" }),
+  getAll() {
+    return rolRepository.findAll();
+  },
 };
