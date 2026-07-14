@@ -42,4 +42,27 @@ export const casoController = {
       return res.status(500).json({ message: "Error interno del servidor" });
     }
   },
+
+  async update(req: AuthRequest, res: Response) {
+    try {
+      const caso = await casoService.update(Number(req.params.id), req.body);
+      return res.json({ message: "Caso actualizado exitosamente", data: caso });
+    } catch (error) {
+      if (error instanceof AppError) return res.status(error.statusCode).json({ message: error.message });
+      return res.status(500).json({ message: "Error interno del servidor" });
+    }
+  },
+
+  async remove(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const motivo = req.body?.motivo ?? null;
+      const caso = await casoService.anular(Number(req.params.id), req.user.id_usuario, motivo);
+      return res.json({ message: "Caso anulado exitosamente", data: caso });
+    } catch (error) {
+      if (error instanceof AppError) return res.status(error.statusCode).json({ message: error.message });
+      return res.status(500).json({ message: "Error interno del servidor" });
+    }
+  },
+
 };
