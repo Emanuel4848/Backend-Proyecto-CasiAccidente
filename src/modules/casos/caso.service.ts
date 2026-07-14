@@ -105,7 +105,6 @@ export const casoService = {
     if (caso.id_estado === ESTADO_ANULADO_ID) {
       throw new AppError("Este caso ya esta anulado", 400);
     }
-    // Asuncion: un caso ya cerrado no deberia poder anularse. Confirmame si esto no es correcto.
     if (caso.id_estado === 12 || caso.id_estado === 13) {
       throw new AppError("No se puede anular un caso que ya esta cerrado", 403);
     }
