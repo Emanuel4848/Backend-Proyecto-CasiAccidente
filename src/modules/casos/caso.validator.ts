@@ -44,4 +44,27 @@ export const casoValidator = {
       id_contratista: parseOptionalId(data.id_contratista, "id_contratista"),
     };
   },
+
+  validateUpdate(data: CasoInput) {
+    const parsed: Record<string, unknown> = {};
+
+    if (data.titulo !== undefined) {
+      if (!data.titulo.trim()) throw new AppError("El titulo no puede quedar vacio");
+      parsed.titulo = data.titulo.trim();
+    }
+    if (data.descripcion !== undefined) {
+      if (!data.descripcion.trim()) throw new AppError("La descripcion no puede quedar vacia");
+      parsed.descripcion = data.descripcion.trim();
+    }
+    if (data.id_brigada !== undefined) parsed.id_brigada = parseRequiredId(data.id_brigada, "id_brigada");
+    if (data.id_region !== undefined) parsed.id_region = parseRequiredId(data.id_region, "id_region");
+    if (data.id_proceso !== undefined) parsed.id_proceso = parseRequiredId(data.id_proceso, "id_proceso");
+    if (data.id_contratista !== undefined) parsed.id_contratista = parseOptionalId(data.id_contratista, "id_contratista");
+
+    if (Object.keys(parsed).length === 0) {
+      throw new AppError("Debe enviar al menos un campo para actualizar");
+    }
+    return parsed;
+  },
+
 };
