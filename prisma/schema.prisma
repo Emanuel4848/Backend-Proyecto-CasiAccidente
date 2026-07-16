@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
@@ -113,6 +112,7 @@ model documentos {
   casi_accidentes      casi_accidentes?      @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
   tipos_documento      tipos_documento?      @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction)
   usuarios             usuarios?             @relation(fields: [id_usuario_subio], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  historial            historial[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -140,6 +140,8 @@ model historial {
   motivo                                       String?
   requiere_correccion                          Boolean?
   fecha                                        DateTime?        @db.Timestamp(6)
+  id_documento                                 Int?
+  documentos                                   documentos?      @relation(fields: [id_documento], references: [id_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_documento")
   casi_accidentes                              casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
   estados_historial_id_estado_destinoToestados estados?         @relation("historial_id_estado_destinoToestados", fields: [id_estado_destino], references: [id_estado], onDelete: NoAction, onUpdate: NoAction)
   estados_historial_id_estado_origenToestados  estados?         @relation("historial_id_estado_origenToestados", fields: [id_estado_origen], references: [id_estado], onDelete: NoAction, onUpdate: NoAction)
