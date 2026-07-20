@@ -6,13 +6,9 @@ import { DocumentoValidator } from "./documento.validator";
 export class DocumentoService {
 
   private repository = new DocumentoRepository();
-
   private storage = new DocumentoStorage();
 
-  async subirDocumento(
-    archivo: Express.Multer.File,
-    body: any,
-    usuarioId: number
+  async subirDocumento(archivo: Express.Multer.File, body: any, usuarioId: number
   ) {
 
     DocumentoValidator.validar(body);
@@ -65,28 +61,14 @@ export class DocumentoService {
     }
 
     const ruta =
-      await this.storage.subirArchivo(
-
-        archivo,
-
-        caso.numero_caso,
-
-        tipoDocumento.nombre!,
-
-        version
-
+      await this.storage.subirArchivo(archivo, caso.numero_caso, tipoDocumento.nombre!, version
       );
 
     return this.repository.crear({
-
       nombre_archivo: archivo.originalname,
-
       ruta_archivo: ruta,
-
       descripcion: body.descripcion ?? null,
-
       version: version,
-
       subido_en: new Date(),
 
       usuarios: {
@@ -108,49 +90,36 @@ export class DocumentoService {
       },
 
     });
-
   }
 
   async listarPorCaso(idCaso: number) {
-
     return this.repository.buscarPorCaso(idCaso);
-
   }
 
   async obtenerDocumento(id: number) {
-
     const documento = await this.repository.buscarPorId(id);
 
     if (!documento) {
       throw new Error("Documento no encontrado.");
     }
-
     return documento;
-
   }
 
   async obtenerUrlDescarga(id: number) {
-
     const documento = await this.obtenerDocumento(id);
 
     if (!documento.ruta_archivo) {
       throw new Error("El documento no tiene ruta.");
     }
-
     return this.storage.obtenerUrl(documento.ruta_archivo);
-
   }
 
   async eliminarDocumento(id: number) {
-
     const documento = await this.obtenerDocumento(id);
 
     if (documento.ruta_archivo) {
       await this.storage.eliminarArchivo(documento.ruta_archivo);
     }
-
     await this.repository.eliminar(id);
-
   }
-
 }

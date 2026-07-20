@@ -1,13 +1,9 @@
 import { Router } from "express";
-
 import { DocumentoController } from "./documento.controller";
-
 import { authMiddleware } from "../../middlewares/auth.middleware";
-
 import { upload } from "../../config/multer";
 
 const router = Router();
-
 const controller = new DocumentoController();
 
 router.post(

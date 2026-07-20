@@ -49,29 +49,18 @@ export class DocumentoRepository {
     });
   }
 
-  async obtenerUltimaVersion(
-    idCaso: number,
-    idTipoDocumento: number
+  async obtenerUltimaVersion(idCaso: number, idTipoDocumento: number
   ) {
 
     return prisma.documentos.findFirst({
-
       where: {
-
-        id_casi_accidente: idCaso,
-
-        id_tipo_documento: idTipoDocumento
-
+        id_casi_accidente: idCaso, id_tipo_documento: idTipoDocumento
       },
 
       orderBy: {
-
         version: "desc"
-
       }
-
     });
-
   }
 
 }

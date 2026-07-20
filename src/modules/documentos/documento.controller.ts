@@ -6,13 +6,9 @@ const service = new DocumentoService();
 
 export class DocumentoController {
 
-    async subir(
-        req: AuthRequest,
-        res: Response,
-        next: NextFunction
+    async subir(req: AuthRequest, res: Response, next: NextFunction
     ) {
         try {
-
             if (!req.user) {
                 return res.status(401).json({
                     success: false,
@@ -27,10 +23,7 @@ export class DocumentoController {
                 });
             }
 
-            const documento = await service.subirDocumento(
-                req.file,
-                req.body,
-                req.user!.id_usuario
+            const documento = await service.subirDocumento(req.file, req.body, req.user!.id_usuario
             );
 
             return res.status(201).json({
@@ -44,17 +37,11 @@ export class DocumentoController {
         }
     }
 
-    async listarPorCaso(
-        req: AuthRequest,
-        res: Response,
-        next: NextFunction
+    async listarPorCaso(req: AuthRequest, res: Response, next: NextFunction
     ) {
         try {
-
             const idCaso = Number(req.params.idCaso);
-
-            const documentos =
-                await service.listarPorCaso(idCaso);
+            const documentos = await service.listarPorCaso(idCaso);
 
             return res.json({
                 success: true,
@@ -66,17 +53,11 @@ export class DocumentoController {
         }
     }
 
-    async obtenerPorId(
-        req: AuthRequest,
-        res: Response,
-        next: NextFunction
+    async obtenerPorId(req: AuthRequest, res: Response, next: NextFunction
     ) {
         try {
-
             const id = Number(req.params.id);
-
-            const documento =
-                await service.obtenerDocumento(id);
+            const documento = await service.obtenerDocumento(id);
 
             return res.json({
                 success: true,
@@ -88,17 +69,11 @@ export class DocumentoController {
         }
     }
 
-    async obtenerUrl(
-        req: AuthRequest,
-        res: Response,
-        next: NextFunction
+    async obtenerUrl(req: AuthRequest, res: Response, next: NextFunction
     ) {
         try {
-
             const id = Number(req.params.id);
-
-            const url =
-                await service.obtenerUrlDescarga(id);
+            const url = await service.obtenerUrlDescarga(id);
 
             return res.json({
                 success: true,
@@ -112,25 +87,17 @@ export class DocumentoController {
         }
     }
 
-    async eliminar(
-        req: AuthRequest,
-        res: Response,
-        next: NextFunction
+    async eliminar(req: AuthRequest, res: Response, next: NextFunction
     ) {
         try {
-
             const id = Number(req.params.id);
-
             await service.eliminarDocumento(id);
-
             return res.json({
                 success: true,
                 message: "Documento eliminado correctamente."
             });
-
         } catch (error) {
             next(error);
         }
     }
-
 }
