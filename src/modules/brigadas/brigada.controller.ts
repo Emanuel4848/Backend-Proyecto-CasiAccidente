@@ -9,8 +9,9 @@ const handleError = (error: unknown, res: Response) => {
 };
 
 export const brigadaController = {
-  async getAll(_req: Request, res: Response) {
-    const data = await brigadaService.getAll();
+  async getAll(req: Request, res: Response) {
+    const search = typeof req.query.q === "string" ? req.query.q : undefined;
+    const data = await brigadaService.getAll(search);
     return res.json({ message: "Brigadas obtenidas exitosamente", data });
   },
   async getById(req: Request, res: Response) {

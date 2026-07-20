@@ -55,7 +55,7 @@ export const casoService = {
     
   },
 
-  async getAll(filters: { id_region?: number; id_estado?: number }) {
+  async getAll(filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
     return casoRepository.findAll(filters);
   },
 
@@ -111,4 +111,22 @@ export const casoService = {
 
     return casoRepository.anular(id_casi_accidente, caso.id_estado as number, id_usuario_accion, motivo);
   },
+  
+  async reactivar(id: number, id_usuario_accion: number) {
+    const id_casi_accidente = casoValidator.validateId(id);
+    const caso = await casoRepository.findById(id_casi_accidente);
+    if (!caso) throw new AppError("Caso no encontrado", 404);
+
+    if (caso.id_estado !== ESTADO_ANULADO_ID) {
+      throw new AppError("Solo se pueden reactivar casos que esten anulados", 400);
+    }
+
+    const ultimaAnulacion = await casoRepository.findUltimaAnulacion(id_casi_accidente);
+    if (!ultimaAnulacion || !ultimaAnulacion.id_estado_origen) {
+      throw new AppError("No se encontro el estado previo a la anulacion en el historial", 409);
+    }
+
+    return casoRepository.reactivar(id_casi_accidente, ultimaAnulacion.id_estado_origen, id_usuario_accion);
+  },
+
 };

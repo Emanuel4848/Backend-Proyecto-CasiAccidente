@@ -28,8 +28,8 @@ const validateRelations = async (data: BrigadaData) => {
 };
 
 export const brigadaService = {
-  getAll() {
-    return brigadaRepository.findAll();
+  getAll(search?: string) {
+    return brigadaRepository.findAll({ search, take: search ? 20 : undefined });
   },
   async getById(id: number) {
     const id_brigada = brigadaValidator.validateId(id);
