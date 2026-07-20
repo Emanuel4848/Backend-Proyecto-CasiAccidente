@@ -11,5 +11,6 @@ router.get("/", casoController.getAll);
 router.get("/:id", casoController.getById);
 router.put("/:id", casoController.update);
 router.delete("/:id", casoController.remove);
+router.patch("/:id/reactivar", casoController.reactivar);
 
 export default router;

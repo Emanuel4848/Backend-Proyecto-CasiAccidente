@@ -7,10 +7,15 @@ const includeCatalogs = {
 };
 
 export const brigadaRepository = {
-  findAll() {
+  findAll(params?: { search?: string; take?: number }) {
+    const { search, take } = params ?? {};
     return prisma.brigadas.findMany({
+      where: search
+        ? { nombre: { contains: search, mode: "insensitive" } }
+        : undefined,
       orderBy: { id_brigada: "asc" },
       include: includeCatalogs,
+      take: take ?? undefined,
     });
   },
   findById(id_brigada: number) {

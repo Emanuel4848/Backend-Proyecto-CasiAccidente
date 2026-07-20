@@ -19,10 +19,11 @@ export const casoController = {
 
   async getAll(req: AuthRequest, res: Response) {
     try {
-      const { id_region, id_estado } = req.query;
+      const { id_region, id_estado, id_brigada } = req.query;
       const filters = {
         id_region: id_region ? Number(id_region) : undefined,
         id_estado: id_estado ? Number(id_estado) : undefined,
+        id_brigada: id_brigada ? Number(id_brigada) : undefined,
       };
       const data = await casoService.getAll(filters);
       return res.json({ message: "Casos obtenidos exitosamente", data });
@@ -59,6 +60,17 @@ export const casoController = {
       const motivo = req.body?.motivo ?? null;
       const caso = await casoService.anular(Number(req.params.id), req.user.id_usuario, motivo);
       return res.json({ message: "Caso anulado exitosamente", data: caso });
+    } catch (error) {
+      if (error instanceof AppError) return res.status(error.statusCode).json({ message: error.message });
+      return res.status(500).json({ message: "Error interno del servidor" });
+    }
+  },
+
+  async reactivar(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const caso = await casoService.reactivar(Number(req.params.id), req.user.id_usuario);
+      return res.json({ message: "Caso reactivado exitosamente", data: caso });
     } catch (error) {
       if (error instanceof AppError) return res.status(error.statusCode).json({ message: error.message });
       return res.status(500).json({ message: "Error interno del servidor" });
