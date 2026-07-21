@@ -1,4 +1,15 @@
-// Placeholder for centralized error handling.
-export const errorMiddleware = () => {
-  return (_err: unknown, _req: unknown, _res: unknown, next: () => void) => next();
+import { ErrorRequestHandler } from "express";
+
+export const errorMiddleware: ErrorRequestHandler = (
+  err,
+  req,
+  res,
+  next
+) => {
+  console.error(err);
+
+  return res.status(400).json({
+    success: false,
+    message: err.message,
+  });
 };
