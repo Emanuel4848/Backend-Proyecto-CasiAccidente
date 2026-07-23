@@ -9,6 +9,39 @@ type DurationByStageRow = {
 
 const toNumber = (value: bigint | number | null | undefined) => Number(value ?? 0);
 
+const normalizeText = (value: string | null | undefined) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const resolveOutcomeGroup = (estado: string | null, procede: boolean | null) => {
+  const normalizedState = normalizeText(estado);
+
+  if (normalizedState.includes("rechaz") || normalizedState.includes("anulad")) {
+    return "Rechazados o anulados";
+  }
+
+  if (
+    normalizedState.includes("resuelt") ||
+    normalizedState.includes("cerrad") ||
+    normalizedState.includes("finaliz") ||
+    normalizedState.includes("complet")
+  ) {
+    return "Resueltos";
+  }
+
+  if (procede === true) {
+    return "Resueltos";
+  }
+
+  if (procede === false) {
+    return "Rechazados o anulados";
+  }
+
+  return "En proceso";
+};
+
 export const dashboardRepository = {
   async getSummary() {
     const [
@@ -50,15 +83,29 @@ export const dashboardRepository = {
   },
 
   async getAcceptedRejected() {
-    const rows = await prisma.casi_accidentes.groupBy({
-      by: ["procede"],
-      _count: { _all: true },
+    const cases = await prisma.casi_accidentes.findMany({
+      select: {
+        procede: true,
+        estados: {
+          select: { nombre: true },
+        },
+      },
     });
 
-    return rows.map((row) => ({
-      estado: row.procede === true ? "Aceptados" : row.procede === false ? "Rechazados" : "Pendientes",
-      valor: row._count._all,
-    }));
+    const grouped = new Map([
+      ["En proceso", 0],
+      ["Resueltos", 0],
+      ["Rechazados o anulados", 0],
+    ]);
+
+    for (const item of cases) {
+      const group = resolveOutcomeGroup(item.estados?.nombre ?? null, item.procede);
+      grouped.set(group, (grouped.get(group) ?? 0) + 1);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([estado, valor]) => ({ estado, valor }))
+      .filter((item) => item.valor > 0);
   },
 
   async getByStatus() {
