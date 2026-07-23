@@ -45,18 +45,19 @@ const resolveOutcomeGroup = (estado: string | null, procede: boolean | null) => 
 export const dashboardRepository = {
   async getSummary() {
     const [
-      totalCasos,
-      casosAceptados,
-      casosRechazados,
-      casosPendientes,
+      cases,
       totalAcciones,
       accionesAbiertas,
       avanceAcciones,
     ] = await Promise.all([
-      prisma.casi_accidentes.count(),
-      prisma.casi_accidentes.count({ where: { procede: true } }),
-      prisma.casi_accidentes.count({ where: { procede: false } }),
-      prisma.casi_accidentes.count({ where: { procede: null } }),
+      prisma.casi_accidentes.findMany({
+        select: {
+          procede: true,
+          estados: {
+            select: { nombre: true },
+          },
+        },
+      }),
       prisma.acciones_correctivas.count(),
       prisma.acciones_correctivas.count({
         where: {
@@ -71,11 +72,27 @@ export const dashboardRepository = {
       }),
     ]);
 
+    const outcomeTotals = cases.reduce(
+      (totals, item) => {
+        const group = resolveOutcomeGroup(item.estados?.nombre ?? null, item.procede);
+
+        if (group === "Resueltos") totals.resueltos += 1;
+        else if (group === "Rechazados o anulados") totals.rechazadosAnulados += 1;
+        else totals.enProceso += 1;
+
+        return totals;
+      },
+      { enProceso: 0, resueltos: 0, rechazadosAnulados: 0 }
+    );
+
     return {
-      totalCasos,
-      casosAceptados,
-      casosRechazados,
-      casosPendientes,
+      totalCasos: cases.length,
+      casosAceptados: outcomeTotals.resueltos,
+      casosRechazados: outcomeTotals.rechazadosAnulados,
+      casosPendientes: outcomeTotals.enProceso,
+      enProceso: outcomeTotals.enProceso,
+      resueltos: outcomeTotals.resueltos,
+      rechazadosAnulados: outcomeTotals.rechazadosAnulados,
       totalAcciones,
       accionesAbiertas,
       avancePromedioAcciones: Math.round(avanceAcciones._avg.porcentaje_avance ?? 0),
