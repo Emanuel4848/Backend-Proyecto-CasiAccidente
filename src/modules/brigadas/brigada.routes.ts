@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get("/", brigadaController.getAll);
+router.get("/catalogos", brigadaController.getCatalogos);
 router.get("/:id", brigadaController.getById);
 router.post("/", brigadaController.create);
 router.put("/:id", brigadaController.update);

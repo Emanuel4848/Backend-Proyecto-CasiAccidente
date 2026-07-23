@@ -24,6 +24,28 @@ export const brigadaRepository = {
       include: includeCatalogs,
     });
   },
+  async findCatalogos() {
+    const [regiones, procesos, contratistas] = await Promise.all([
+      prisma.regiones.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+      prisma.procesos.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+      prisma.contratistas.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+    ]);
+
+    return {
+      regiones,
+      procesos,
+      contratistas,
+    };
+  },
   findRegionById(id_region: number) {
     return prisma.regiones.findUnique({ where: { id_region } });
   },

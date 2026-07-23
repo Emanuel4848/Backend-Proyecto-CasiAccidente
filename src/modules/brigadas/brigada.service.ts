@@ -31,6 +31,9 @@ export const brigadaService = {
   getAll(search?: string) {
     return brigadaRepository.findAll({ search, take: search ? 20 : undefined });
   },
+  getCatalogos() {
+    return brigadaRepository.findCatalogos();
+  },
   async getById(id: number) {
     const id_brigada = brigadaValidator.validateId(id);
     const brigada = await brigadaRepository.findById(id_brigada);
