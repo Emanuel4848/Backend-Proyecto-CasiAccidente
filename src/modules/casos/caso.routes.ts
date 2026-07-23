@@ -12,5 +12,8 @@ router.get("/:id", casoController.getById);
 router.put("/:id", casoController.update);
 router.delete("/:id", casoController.remove);
 router.patch("/:id/reactivar", casoController.reactivar);
+router.patch("/:id/rechazar", casoController.rechazar);
+router.patch("/:id/cerrar", casoController.cerrar);
+router.post('/:id/evaluar', authMiddleware, casoController.evaluar);
 
 export default router;

@@ -82,6 +82,10 @@ model casi_accidentes {
   usuarios_casi_accidentes_id_usuario_symaTousuarios            usuarios?              @relation("casi_accidentes_id_usuario_symaTousuarios", fields: [id_usuario_syma], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
   documentos                                                    documentos[]
   historial                                                     historial[]
+  bitacora              bitacora[]
+  cierres               cierres?
+  rechazos              rechazos[]
+  revisiones            revisiones[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -232,4 +236,53 @@ model usuarios {
   historial                                                            historial[]
   usuario_asignacion                                                   usuario_asignacion[]
   usuario_roles                                                        usuario_roles[]
+  bitacora              bitacora[]
+  cierres               cierres[]
+  rechazos              rechazos[]
+  revisiones            revisiones[]
+}
+
+model revisiones {
+  id_revision       Int              @id @default(autoincrement())
+  id_casi_accidente Int?
+  id_usuario        Int?
+  comentarios       String?
+  estado_revision   String?          @db.VarChar
+  fecha_revision    DateTime?        @default(now()) @db.Timestamp(6)
+  
+  casi_accidentes   casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  usuarios          usuarios?        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model rechazos {
+  id_rechazo        Int              @id @default(autoincrement())
+  id_casi_accidente Int?
+  id_usuario        Int?
+  motivo            String
+  fecha_rechazo     DateTime?        @default(now()) @db.Timestamp(6)
+  
+  casi_accidentes   casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  usuarios          usuarios?        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cierres {
+  id_cierre         Int              @id @default(autoincrement())
+  id_casi_accidente Int?             @unique
+  id_usuario        Int?
+  resolucion        String?
+  fecha_cierre      DateTime?        @default(now()) @db.Timestamp(6)
+  
+  casi_accidentes   casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  usuarios          usuarios?        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model bitacora {
+  id_bitacora       Int              @id @default(autoincrement())
+  id_casi_accidente Int?
+  id_usuario        Int?
+  accion            String           @db.VarChar
+  fecha_accion      DateTime?        @default(now()) @db.Timestamp(6)
+  
+  casi_accidentes   casi_accidentes? @relation(fields: [id_casi_accidente], references: [id_casi_accidente], onDelete: NoAction, onUpdate: NoAction)
+  usuarios          usuarios?        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }

@@ -2,6 +2,7 @@ import { Response } from "express";
 import type { AuthRequest } from "../../middlewares/auth.middleware";
 import { casoService } from "./caso.service";
 import { AppError } from "../../utils/app-error";
+import { Request, NextFunction } from "express";
 
 export const casoController = {
   async create(req: AuthRequest, res: Response) {
@@ -76,5 +77,65 @@ export const casoController = {
       return res.status(500).json({ message: "Error interno del servidor" });
     }
   },
+
+  // Añade este método dentro de tu casoController existente:
+async rechazar(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { motivo } = req.body;
+    
+    const id_usuario_accion = (req as any).user?.id_usuario || req.body.id_usuario_accion;
+
+    const casoRechazado = await casoService.rechazar(Number(id), Number(id_usuario_accion), motivo);
+
+    return res.status(200).json({
+      success: true,
+      message: "Caso rechazado exitosamente mediante transacción atómica",
+      data: casoRechazado,
+    });
+  } catch (error) {
+    next(error);
+  }
+},
+
+// Añade este método a tu casoController existente:
+async cerrar(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { tipo_cierre, motivo_cierre } = req.body;
+    
+    const id_usuario_accion = (req as any).user?.id_usuario || req.body.id_usuario_accion;
+
+    const casoCerrado = await casoService.cerrar(Number(id), Number(id_usuario_accion), tipo_cierre, motivo_cierre);
+
+    return res.status(200).json({
+      success: true,
+      message: "Caso cerrado exitosamente",
+      data: casoCerrado,
+    });
+  } catch (error) {
+    next(error);
+  }
+},
+
+async evaluar(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    
+    // Búsqueda robusta para adaptarnos a cómo lo guarde tu authMiddleware
+    const reqAny = req as any;
+    const usuarioLogueado = reqAny.usuario || reqAny.user;
+    const id_usuario = usuarioLogueado?.id_usuario || usuarioLogueado?.id;
+
+    if (!id_usuario) {
+      throw new AppError("No se encontró el usuario en la sesión", 401);
+    }
+
+    const resultado = await casoService.evaluar(Number(id), Number(id_usuario));
+    res.json({ message: "Caso evaluado correctamente", data: resultado });
+  } catch (error) {
+    next(error);
+  }
+}
 
 };
