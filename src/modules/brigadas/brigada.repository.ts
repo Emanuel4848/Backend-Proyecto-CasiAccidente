@@ -7,10 +7,15 @@ const includeCatalogs = {
 };
 
 export const brigadaRepository = {
-  findAll() {
+  findAll(params?: { search?: string; take?: number }) {
+    const { search, take } = params ?? {};
     return prisma.brigadas.findMany({
+      where: search
+        ? { nombre: { contains: search, mode: "insensitive" } }
+        : undefined,
       orderBy: { id_brigada: "asc" },
       include: includeCatalogs,
+      take: take ?? undefined,
     });
   },
   findById(id_brigada: number) {
@@ -18,6 +23,28 @@ export const brigadaRepository = {
       where: { id_brigada },
       include: includeCatalogs,
     });
+  },
+  async findCatalogos() {
+    const [regiones, procesos, contratistas] = await Promise.all([
+      prisma.regiones.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+      prisma.procesos.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+      prisma.contratistas.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+      }),
+    ]);
+
+    return {
+      regiones,
+      procesos,
+      contratistas,
+    };
   },
   findRegionById(id_region: number) {
     return prisma.regiones.findUnique({ where: { id_region } });

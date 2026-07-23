@@ -8,6 +8,8 @@ const includeCatalogs = {
   estados: true,
 };
 
+const ESTADO_ANULADO_ID = 14;
+
 export const casoRepository = {
   countByYear(year: number) {
     return prisma.casi_accidentes.count({
@@ -74,11 +76,12 @@ export const casoRepository = {
       return caso;
     });
   },
-  findAll(filters: { id_region?: number; id_estado?: number }) {
+  findAll(filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
     return prisma.casi_accidentes.findMany({
       where: {
         id_region: filters.id_region,
         id_estado: filters.id_estado,
+        id_brigada: filters.id_brigada,
       },
       orderBy: { creado_en: "desc" },
       include: includeCatalogs,
@@ -90,5 +93,71 @@ export const casoRepository = {
       include: includeCatalogs,
     });
   },
-  
+
+  update(id_casi_accidente: number, data: Record<string, unknown>) {
+  return prisma.casi_accidentes.update({
+    where: { id_casi_accidente },
+    data: { ...data, actualizado_en: new Date() },
+    include: includeCatalogs,
+  });
+  },
+
+  anular(id_casi_accidente: number, id_estado_origen: number, id_usuario_accion: number, motivo: string | null) {
+  return prisma.$transaction(async (tx) => {
+    const ahora = new Date();
+
+    const caso = await tx.casi_accidentes.update({
+      where: { id_casi_accidente },
+      data: { id_estado: ESTADO_ANULADO_ID, actualizado_en: ahora },
+      include: includeCatalogs,
+    });
+
+    await tx.historial.create({
+      data: {
+        id_casi_accidente,
+        id_usuario_accion,
+        id_estado_origen,
+        id_estado_destino: ESTADO_ANULADO_ID,
+        accion: "Anulacion",
+        motivo: motivo ?? "Sin motivo especificado",
+        fecha: ahora,
+      },
+    });
+
+    return caso;
+  });
+  },
+
+  findUltimaAnulacion(id_casi_accidente: number) {
+    return prisma.historial.findFirst({
+      where: { id_casi_accidente, accion: "Anulacion" },
+      orderBy: { fecha: "desc" },
+    });
+  },
+
+  reactivar(id_casi_accidente: number, id_estado_destino: number, id_usuario_accion: number) {
+    return prisma.$transaction(async (tx) => {
+      const ahora = new Date();
+
+      const caso = await tx.casi_accidentes.update({
+        where: { id_casi_accidente },
+        data: { id_estado: id_estado_destino, actualizado_en: ahora },
+        include: includeCatalogs,
+      });
+
+      await tx.historial.create({
+        data: {
+          id_casi_accidente,
+          id_usuario_accion,
+          id_estado_origen: ESTADO_ANULADO_ID,
+          id_estado_destino,
+          accion: "Reactivacion",
+          comentario: "Caso reactivado, restaurado al estado previo a la anulacion",
+          fecha: ahora,
+        },
+      });
+
+      return caso;
+    });
+  },
 };
