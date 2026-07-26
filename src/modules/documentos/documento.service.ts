@@ -122,4 +122,8 @@ export class DocumentoService {
     }
     await this.repository.eliminar(id);
   }
+
+  async obtenerPorNumeroCaso(numeroCaso: string) {
+    return this.repository.obtenerPorNumeroCaso(numeroCaso);
+  }
 }
