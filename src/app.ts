@@ -12,8 +12,12 @@ import documentoRoutes from "./modules/documentos/documento.routes";
 import accionCorrectivaRoutes from "./modules/acciones-correctivas/accion-correctiva.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import historialRoutes from "./modules/historial/historial.routes";
+import { errorMiddleware } from "./middlewares/error.middleware";
+
+
 
 const app = express();
+app.use(errorMiddleware);
 
 app.use(cors());
 app.use(express.json());

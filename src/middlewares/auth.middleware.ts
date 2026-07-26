@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { AuthTokenPayload } from "../modules/auth/auth.service";
+import { env } from "../config/env";
 
 export interface AuthRequest extends Request {
   user?: AuthTokenPayload;
@@ -20,7 +21,7 @@ export const authMiddleware = (
   }
 
   const token = authHeader.split(" ")[1];
-  const jwtSecret = process.env.JWT_SECRET;
+  const jwtSecret = env.JWT_SECRET;
 
   if (!jwtSecret) {
     return res.status(500).json({
