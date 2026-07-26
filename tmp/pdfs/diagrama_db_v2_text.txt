@@ -1,0 +1,177 @@
+--- PAGE 1 ---
+roles usuario_roles evidencias
+00....11
+id_rol int id_usuario_rol int id_evidencia int
+documentos
+* *
+nombre varchar id_usuario int casi_accidentes 0..1 id_accion int
+id_documento int
+* 000......111 *
+descripcion varchar id_rol int id_casi_accidente int * id_documento int
+id_casi_accidente int
+activo boolean numero_caso varchar * descripcion text
+id_tipo_documento int
+*
+correlativo varchar subido_por int
+nombre_archivo varchar
+titulo varchar fecha_subida timestamp
+ruta_archivo varchar
+tipos_documento
+usuario_asignacion descripcion text
+id_tipo_documento int 0..1 version int
+id_asignacion int fecha_reporte timestamp *
+nombre varchar * subido_por int
+id_usuario int * id_region int
+subido_en timestamp
+*
+id_rol int * id_proceso int
+*
+usuarios id_region int * id_brigada int
+id_usuario int 0000000000000..........................1111111111111 * id_proceso int * id_contratista int acciones_correctivas
+0..1
+nombre varchar activo boolean * id_estado int id_accion int
+*
+correo varchar procede boolean id_casi_accidente int
+password varchar requiere_acciones boolean descripcion text
+brigadas
+*
+activo boolean 0..1 * id_usuario_actual int responsable int
+id_brigada int
+creado_en timestamp * id_prl_asignado int prioridad varchar
+nombre varchar
+* porcentaje_avance int
+* id_responsable_asignado int
+id_region int
+* estado varchar
+* id_syma_asignado int
+regiones id_proceso int
+* fecha_compromiso date
+000......111 * id_gestion_control int
+id_region int id_contratista int
+* fecha_finalizacion date
+cerrado_por int
+nombre varchar activo boolean
+fecha_cierre timestamp
+descripcion varchar
+tipo_cierre varchar
+activo boolean historial
+*
+creado_por int
+id_historial int
+creado_en timestamp *
+id_casi_accidente int
+procesos actualizado_en timestamp *
+id_usuario int
+000......111
+id_proceso int *
+id_estado_origen int
+nombre varchar *
+id_estado_destino int
+descripcion varchar
+accion varchar
+activo boolean
+comentario text
+motivo text
+contratistas requiere_correccion boolean
+00....11
+id_contratista int fecha timestamp
+nombre varchar
+correo varchar
+telefono varchar
+activo boolean
+estados
+000......111
+id_estado int
+nombre varchar
+descripcion varchar
+orden int
+activo boolean
+
+--- PAGE 2 ---
+roles usuario_roles evidencias
+00....11
+id_rol int id_usuario_rol int id_evidencia int
+documentos
+* *
+nombre varchar id_usuario int casi_accidentes 0..1 id_accion int
+id_documento int
+* 000......111 *
+descripcion varchar id_rol int id_casi_accidente int * id_documento int
+id_casi_accidente int
+activo boolean numero_caso varchar * descripcion text
+id_tipo_documento int
+*
+correlativo varchar subido_por int
+nombre_archivo varchar
+titulo varchar fecha_subida timestamp
+ruta_archivo varchar
+tipos_documento
+usuario_asignacion descripcion text
+id_tipo_documento int 0..1 version int
+id_asignacion int fecha_reporte timestamp *
+nombre varchar * subido_por int
+id_usuario int * id_region int
+subido_en timestamp
+*
+id_rol int * id_proceso int
+*
+usuarios id_region int * id_brigada int
+id_usuario int 0000000000000..........................1111111111111 * id_proceso int * id_contratista int acciones_correctivas
+0..1
+nombre varchar activo boolean * id_estado int id_accion int
+*
+correo varchar procede boolean id_casi_accidente int
+password varchar requiere_acciones boolean descripcion text
+brigadas
+*
+activo boolean 0..1 * id_usuario_actual int responsable int
+id_brigada int
+creado_en timestamp * id_prl_asignado int prioridad varchar
+nombre varchar
+* porcentaje_avance int
+* id_responsable_asignado int
+id_region int
+* estado varchar
+* id_syma_asignado int
+regiones id_proceso int
+* fecha_compromiso date
+000......111 * id_gestion_control int
+id_region int id_contratista int
+* fecha_finalizacion date
+cerrado_por int
+nombre varchar activo boolean
+fecha_cierre timestamp
+descripcion varchar
+tipo_cierre varchar
+activo boolean historial
+*
+creado_por int
+id_historial int
+creado_en timestamp *
+id_casi_accidente int
+procesos actualizado_en timestamp *
+id_usuario int
+000......111
+id_proceso int *
+id_estado_origen int
+nombre varchar *
+id_estado_destino int
+descripcion varchar
+accion varchar
+activo boolean
+comentario text
+motivo text
+contratistas requiere_correccion boolean
+00....11
+id_contratista int fecha timestamp
+nombre varchar
+correo varchar
+telefono varchar
+activo boolean
+estados
+000......111
+id_estado int
+nombre varchar
+descripcion varchar
+orden int
+activo boolean

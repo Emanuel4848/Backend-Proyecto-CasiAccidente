@@ -14,6 +14,10 @@ export const brigadaController = {
     const data = await brigadaService.getAll(search);
     return res.json({ message: "Brigadas obtenidas exitosamente", data });
   },
+  async getCatalogos(_req: Request, res: Response) {
+    const data = await brigadaService.getCatalogos();
+    return res.json({ message: "Catalogos de brigadas obtenidos exitosamente", data });
+  },
   async getById(req: Request, res: Response) {
     try {
       const data = await brigadaService.getById(getIdParam(req));
