@@ -14,9 +14,15 @@ router.post(
 );
 
 router.get(
-    "/caso/:idCaso",
+    "/caso/id/:idCaso",
     authMiddleware,
     controller.listarPorCaso.bind(controller)
+);
+
+router.get(
+    "/caso/numero/:numeroCaso",
+    authMiddleware,
+    controller.obtenerPorNumeroCaso.bind(controller)
 );
 
 router.get(

@@ -100,4 +100,22 @@ export class DocumentoController {
             next(error);
         }
     }
+
+    async obtenerPorNumeroCaso(
+        req: AuthRequest,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const numeroCaso = req.params.numeroCaso as string;
+            const documentos = await service.obtenerPorNumeroCaso(numeroCaso);
+            return res.json({
+                success: true,
+                data: documentos
+            });
+
+        } catch (error) {
+            next(error);
+        }
+    }
 }
