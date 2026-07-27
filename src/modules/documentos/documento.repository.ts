@@ -63,4 +63,22 @@ export class DocumentoRepository {
     });
   }
 
+  async obtenerPorNumeroCaso(numeroCaso: string) {
+    return prisma.documentos.findMany({
+      where: {
+        casi_accidentes: {
+          numero_caso: numeroCaso
+        }
+      },
+      include: {
+        tipos_documento: true,
+        usuarios: true
+      },
+      orderBy: [
+        { id_tipo_documento: "asc" },
+        { version: "desc" }
+      ]
+    });
+  }
+
 }
