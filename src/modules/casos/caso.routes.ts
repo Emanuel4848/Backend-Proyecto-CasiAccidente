@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.post("/", casoController.create);
 router.get("/", casoController.getAll);
+router.get("/bandeja", casoController.getBandeja);
 router.get("/:id", casoController.getById);
 router.put("/:id", casoController.update);
 router.delete("/:id", casoController.remove);

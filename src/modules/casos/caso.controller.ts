@@ -19,15 +19,38 @@ export const casoController = {
 
   async getAll(req: AuthRequest, res: Response) {
     try {
+      if (!req.user) throw new AppError("No autenticado", 401);
       const { id_region, id_estado, id_brigada } = req.query;
       const filters = {
         id_region: id_region ? Number(id_region) : undefined,
         id_estado: id_estado ? Number(id_estado) : undefined,
         id_brigada: id_brigada ? Number(id_brigada) : undefined,
       };
-      const data = await casoService.getAll(filters);
+      const data = await casoService.getAll(filters, req.user);
       return res.json({ message: "Casos obtenidos exitosamente", data });
-    } catch {
+    } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
+      return res.status(500).json({ message: "Error interno del servidor" });
+    }
+  },
+
+  async getBandeja(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const { id_region, id_estado, id_brigada } = req.query;
+      const filters = {
+        id_region: id_region ? Number(id_region) : undefined,
+        id_estado: id_estado ? Number(id_estado) : undefined,
+        id_brigada: id_brigada ? Number(id_brigada) : undefined,
+      };
+      const data = await casoService.getBandeja(filters, req.user);
+      return res.json({ message: "Bandeja obtenida exitosamente", data });
+    } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       return res.status(500).json({ message: "Error interno del servidor" });
     }
   },

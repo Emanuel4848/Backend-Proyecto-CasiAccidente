@@ -1,3 +1,4 @@
+import prisma from "../../config/prisma";
 import { AppError } from "../../utils/app-error";
 import { casoRepository } from "./caso.repository";
 import { casoValidator } from "./caso.validator";
@@ -5,7 +6,15 @@ import { casoValidator } from "./caso.validator";
 const ESTADO_REPORTADO_ID = 1;
 const ESTADOS_EDITABLES = [5, 7, 8, 9, 10]; // Rechazado SYMA, Pend. formato inicial, Pend. formato divulgacion, Pend. acciones correctivas, Pend. evidencias
 const ESTADO_ANULADO_ID = 14;
+const ESTADO_CERRADO_SIN_ACCIONES_ID = 12;
+const ESTADO_CERRADO_CON_ACCIONES_ID = 13;
 
+const ROL_ADMINISTRADOR = 1;
+const ROL_BRIGADA = 2;
+const ROL_PRL_CONTRATISTA = 3;
+const ROL_RESPONSABLE_PROCESO = 4;
+const ROL_GESTOR_SYMA = 5;
+const ROL_GESTION_CONTROL_SYMA = 6;
 
 export const casoService = {
   async create(data: unknown, id_usuario_creacion: number) {
@@ -21,9 +30,7 @@ export const casoService = {
 
     if (!id_region) throw new AppError("No se pudo determinar la region ");
     if (!id_proceso) throw new AppError("No se pudo determinar el proceso ");
-
-    // Si el frontend mando una region/proceso distinta a la de la brigada, se valida que exista igual.
-    const [region, proceso] = await Promise.all([
+    const [region, proceso] = await Promise.all([    
       casoRepository.findRegionById(id_region),
       casoRepository.findProcesoById(id_proceso),
     ]);
@@ -51,12 +58,72 @@ export const casoService = {
       id_estado: ESTADO_REPORTADO_ID,
       id_usuario_creacion,
       id_usuario_actual: id_usuario_creacion,
+      id_usuario_prl: id_usuario_creacion, 
     }, id_usuario_creacion);
-    
+
   },
 
-  async getAll(filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
-    return casoRepository.findAll(filters);
+  async getAll(
+    filters: { id_region?: number; id_estado?: number; id_brigada?: number },
+    user: { id_usuario: number; id_rol: number }
+  ) {
+    const where: Record<string, unknown> = {
+      id_region: filters.id_region,
+      id_estado: filters.id_estado,
+      id_brigada: filters.id_brigada,
+    };
+
+    if (user.id_rol !== ROL_ADMINISTRADOR && user.id_rol !== ROL_GESTION_CONTROL_SYMA) {
+      where.id_casi_accidente = -1;
+    }
+
+    return casoRepository.findAll(where);
+  },
+
+  async getBandeja(
+    filters: { id_region?: number; id_estado?: number; id_brigada?: number },
+    user: { id_usuario: number; id_rol: number }
+  ) {
+    const where: Record<string, unknown> = {
+      id_region: filters.id_region,
+      id_brigada: filters.id_brigada,
+      id_estado: filters.id_estado ?? {
+        notIn: [ESTADO_ANULADO_ID, ESTADO_CERRADO_SIN_ACCIONES_ID, ESTADO_CERRADO_CON_ACCIONES_ID],
+      },
+    };
+
+    switch (user.id_rol) {
+      case ROL_PRL_CONTRATISTA:
+        where.id_usuario_prl = user.id_usuario;
+        break;
+
+      case ROL_RESPONSABLE_PROCESO:
+        where.id_usuario_responsable = user.id_usuario;
+        break;
+
+      case ROL_GESTOR_SYMA: {
+        const asignaciones = await prisma.usuario_asignacion.findMany({
+          where: { id_usuario: user.id_usuario, activo: true },
+          select: { id_region: true },
+        });
+        where.id_region = filters.id_region ?? { in: asignaciones.map((a) => a.id_region) };
+        break;
+      }
+
+      case ROL_BRIGADA: {
+        const asignaciones = await prisma.usuario_asignacion.findMany({
+          where: { id_usuario: user.id_usuario, activo: true },
+          select: { id_region: true },
+        });
+        where.id_region = filters.id_region ?? { in: asignaciones.map((a) => a.id_region) };
+        break;
+      }
+
+      default:
+        where.id_casi_accidente = -1;
+    }
+
+    return casoRepository.findAll(where);
   },
 
   async getById(id: number) {
@@ -105,13 +172,13 @@ export const casoService = {
     if (caso.id_estado === ESTADO_ANULADO_ID) {
       throw new AppError("Este caso ya esta anulado", 400);
     }
-    if (caso.id_estado === 12 || caso.id_estado === 13) {
+    if (caso.id_estado === ESTADO_CERRADO_SIN_ACCIONES_ID || caso.id_estado === ESTADO_CERRADO_CON_ACCIONES_ID) {
       throw new AppError("No se puede anular un caso que ya esta cerrado", 403);
     }
 
     return casoRepository.anular(id_casi_accidente, caso.id_estado as number, id_usuario_accion, motivo);
   },
-  
+
   async reactivar(id: number, id_usuario_accion: number) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);

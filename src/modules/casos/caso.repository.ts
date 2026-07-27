@@ -46,6 +46,7 @@ export const casoRepository = {
       id_estado: number;
       id_usuario_creacion: number;
       id_usuario_actual: number;
+      id_usuario_prl: number;
     },
     id_usuario_accion: number
   ) {
@@ -76,17 +77,15 @@ export const casoRepository = {
       return caso;
     });
   },
-  findAll(filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
+
+  findAll(where: Record<string, unknown>) {
     return prisma.casi_accidentes.findMany({
-      where: {
-        id_region: filters.id_region,
-        id_estado: filters.id_estado,
-        id_brigada: filters.id_brigada,
-      },
+      where,
       orderBy: { creado_en: "desc" },
       include: includeCatalogs,
     });
   },
+    
   findById(id_casi_accidente: number) {
     return prisma.casi_accidentes.findUnique({
       where: { id_casi_accidente },
