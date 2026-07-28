@@ -9,7 +9,7 @@ const controller = new DocumentoController();
 router.post(
     "/",
     authMiddleware,
-    upload.single("archivo"),
+    upload.array("archivos", 10),
     controller.subir.bind(controller)
 );
 

@@ -13,7 +13,7 @@ import accionCorrectivaRoutes from "./modules/acciones-correctivas/accion-correc
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import historialRoutes from "./modules/historial/historial.routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
-
+import accionesRoutes from "./modules/acciones-correctivas/accion-correctiva.routes";
 
 
 const app = express();
@@ -40,5 +40,6 @@ app.use("/api/documentos", documentoRoutes);
 app.use("/api/acciones-correctivas", accionCorrectivaRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/historial", historialRoutes);
+app.use("/api/acciones", accionesRoutes);
 
 export default app;
