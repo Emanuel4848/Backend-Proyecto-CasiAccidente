@@ -1,27 +1,43 @@
-import { dashboardRepository } from "./dashboard.repository";
+import { DashboardFilters, dashboardRepository } from "./dashboard.repository";
 
 export const dashboardService = {
-  getSummary() {
-    return dashboardRepository.getSummary();
+  getSummary(filters?: DashboardFilters) {
+    return dashboardRepository.getSummary(filters);
   },
 
-  getAcceptedRejected() {
-    return dashboardRepository.getAcceptedRejected();
+  getAcceptedRejected(filters?: DashboardFilters) {
+    return dashboardRepository.getAcceptedRejected(filters);
   },
 
-  getByStatus() {
-    return dashboardRepository.getByStatus();
+  getByStatus(filters?: DashboardFilters) {
+    return dashboardRepository.getByStatus(filters);
   },
 
-  getByBrigade() {
-    return dashboardRepository.getByBrigade();
+  getByBrigade(filters?: DashboardFilters) {
+    return dashboardRepository.getByBrigade(filters);
   },
 
-  getCorrectiveActionProgress() {
-    return dashboardRepository.getCorrectiveActionProgress();
+  getByProcess(filters?: DashboardFilters) {
+    return dashboardRepository.getByProcess(filters);
   },
 
-  getTimeByStage() {
-    return dashboardRepository.getTimeByStage();
+  getStageFlow(filters?: DashboardFilters) {
+    return dashboardRepository.getStageFlow(filters);
+  },
+
+  getCorrectiveActionProgress(filters?: DashboardFilters) {
+    return dashboardRepository.getCorrectiveActionProgress(filters);
+  },
+
+  getTimeByStage(filters?: DashboardFilters) {
+    return dashboardRepository.getTimeByStage(filters);
+  },
+
+  getMonthlyByStage(filters?: DashboardFilters) {
+    return dashboardRepository.getMonthlyByStage(filters);
+  },
+
+  getFilterOptions() {
+    return dashboardRepository.getFilterOptions();
   },
 };
