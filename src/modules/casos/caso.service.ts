@@ -4,8 +4,9 @@ import { casoValidator } from "./caso.validator";
 import prisma from "../../config/prisma";
 
 const ESTADO_REPORTADO_ID = 1;
-const ESTADOS_EDITABLES = [5, 7, 8, 9, 10]; 
+const ESTADOS_EDITABLES = [3, 5, 7, 8, 9, 10]; 
 const ESTADO_ANULADO_ID = 14;
+const ESTADOS_ACCIONES_CORRECTIVAS = [9, 10, 11];
 
 // Helper para normalizar textos (quita tildes y pasa a minúsculas para comparaciones exactas)
 function normalizarTexto(texto: string): string {
@@ -120,7 +121,8 @@ export const casoService = {
 
   async getAll(user: { id_usuario: number; id_rol: number }, filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
     const casos = await casoRepository.findAll(filters);
-    return filtrarCasosPorRol(user, casos);
+    const casosGestion = casos.filter((caso: any) => !ESTADOS_ACCIONES_CORRECTIVAS.includes(Number(caso.id_estado)));
+    return filtrarCasosPorRol(user, casosGestion);
   },
 
   async getBandeja(user: { id_usuario: number; id_rol: number }) {
@@ -559,15 +561,32 @@ export const casoService = {
     }
   },
 
-  async gestionarResponsable(id: number, id_usuario_accion: number, accion: 'AVANZAR' | 'RECHAZAR' | 'ENVIAR_CIERRE' | 'ENVIAR_ACCIONES', motivo?: string) {
+  async gestionarResponsable(id: number, id_usuario_accion: number, accion: 'AVANZAR' | 'RECHAZAR' | 'ENVIAR_CIERRE' | 'ENVIAR_ACCIONES' | 'CERRAR_SIN_ACCIONES', motivo?: string) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
 
     let estadoDestino = null;
     const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
+    const historialRegistros = await prisma.historial.findMany({
+      where: { id_casi_accidente },
+      include: { estados_historial_id_estado_destinoToestados: true },
+    });
+    const pasoPorAccionesCorrectivas = historialRegistros.some((h: any) =>
+      Number(h.id_estado_destino) === 9 ||
+      normalizarTexto(h.estados_historial_id_estado_destinoToestados?.nombre || "").includes("acciones correctivas")
+    );
 
-    if (accion === 'ENVIAR_CIERRE') {
+    if (accion === 'CERRAR_SIN_ACCIONES') {
+      estadoDestino = await prisma.estados.findFirst({
+        where: {
+          OR: [
+            { id_estado: 12 },
+            { nombre: { contains: "cerrado sin acciones", mode: "insensitive" } },
+          ],
+        },
+      });
+    } else if (accion === 'ENVIAR_CIERRE') {
       // El Responsable manda el caso a SYMA para su validación final de evidencias
       estadoDestino = await prisma.estados.findFirst({
         where: {
@@ -579,18 +598,26 @@ export const casoService = {
         },
       });
     } else if (accion === 'ENVIAR_ACCIONES') {
-      // El Responsable manda el caso al PRL para acciones correctivas -> Estado: "pendiente de evidencias"
+      // El Responsable manda el caso al PRL para acciones correctivas.
       estadoDestino = await prisma.estados.findFirst({
         where: {
           OR: [
-            { nombre: { contains: "pendiente de evidencias", mode: "insensitive" } },
+            { id_estado: 9 },
+            { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } },
             { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
           ],
         },
       });
     } else if (estadoActualNombre.includes("pendiente de revision del responsable del proceso")) {
       estadoDestino = await prisma.estados.findFirst({
-        where: { nombre: { contains: "Pendiente de validacion syma", mode: "insensitive" } },
+        where: pasoPorAccionesCorrectivas
+          ? {
+              OR: [
+                { id_estado: 11 },
+                { nombre: { contains: "Evidencias en revision", mode: "insensitive" } },
+              ],
+            }
+          : { nombre: { contains: "Pendiente de validacion syma", mode: "insensitive" } },
       });
     } else if (estadoActualNombre.includes("aceptado") || estadoActualNombre.includes("procede")) {
       estadoDestino = await prisma.estados.findFirst({
@@ -617,6 +644,11 @@ export const casoService = {
             id_estado: idEstadoDestino,
             id_usuario_responsable: id_usuario_accion,
             id_usuario_actual: id_usuario_accion,
+            ...(accion === 'CERRAR_SIN_ACCIONES' ? {
+              fecha_cierre: new Date(),
+              id_usuario_cierre: id_usuario_accion,
+              tipo_cierre: "CIERRE_SIN_ACCIONES",
+            } : {}),
             actualizado_en: new Date(),
           },
         });
@@ -648,37 +680,47 @@ export const casoService = {
     if (!caso) throw new AppError("Caso no encontrado", 404);
 
     const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
-    const esRevisionEvidencias = estadoActualNombre.includes("validacion syma") || 
-                                  estadoActualNombre.includes("evidencias en revision");
+    const esRevisionEvidencias = estadoActualNombre.includes("evidencias en revision");
 
     // Verificamos en el historial si el caso ya pasó por el formato de divulgación
     const historialRegistros = await prisma.historial.findMany({
       where: { id_casi_accidente },
-      include: { estados_historial_id_estado_destinoToestados: true },
+      include: {
+        estados_historial_id_estado_origenToestados: true,
+        estados_historial_id_estado_destinoToestados: true,
+      },
     });
 
-    const pasoPorDivulgacion = historialRegistros.some((h: any) =>
-      (h.estados_historial_id_estado_destinoToestados?.nombre || '').toLowerCase().includes('divulgacion')
+    const vieneDeFormatoDivulgacion = historialRegistros.some((h: any) => {
+      const accion = normalizarTexto(h.accion || "");
+      const estadoOrigen = normalizarTexto(h.estados_historial_id_estado_origenToestados?.nombre || "");
+      return accion === "prl_enviar_responsable" &&
+        (Number(h.id_estado_origen) === 8 || estadoOrigen.includes("formato de divulgacion"));
+    });
+    const pasoPorAccionesCorrectivas = historialRegistros.some((h: any) =>
+      Number(h.id_estado_destino) === 9 ||
+      normalizarTexto(h.estados_historial_id_estado_destinoToestados?.nombre || '').includes("acciones correctivas")
     );
 
     let estadoDestino = null;
 
     if (aprobado) {
-      if (esRevisionEvidencias) {
-        // Si SYMA aprueba las evidencias finales -> CIERRA EL CASO CON ACCIONES
+      if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
+        // Si SYMA aprueba el flujo final de acciones correctivas, cierra con acciones.
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
+              { id_estado: 13 },
               { nombre: { contains: "cerrado con acciones", mode: "insensitive" } },
-              { nombre: { contains: "cierre", mode: "insensitive" } },
             ],
           },
         });
-      } else if (!pasoPorDivulgacion) {
+      } else if (!vieneDeFormatoDivulgacion) {
         // 1.ª Revisión: Lo devuelve al Responsable como Aceptado / Procede
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
+              { id_estado: 6 },
               { nombre: { contains: "Aceptado", mode: "insensitive" } },
               { nombre: { contains: "Procede", mode: "insensitive" } },
             ],
@@ -689,21 +731,21 @@ export const casoService = {
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
-              { nombre: { contains: "acciones", mode: "insensitive" } },
-              { nombre: { contains: "gestion", mode: "insensitive" } },
-              { nombre: { contains: "cierre", mode: "insensitive" } },
-              { nombre: { contains: "divulgacion realizada", mode: "insensitive" } },
+              { id_estado: 6 },
+              { nombre: { contains: "Aceptado", mode: "insensitive" } },
+              { nombre: { contains: "Procede", mode: "insensitive" } },
             ],
           },
         });
       }
     } else {
-      if (esRevisionEvidencias) {
-        // Si a SYMA le falta algo en las evidencias -> LO REGRESA AL PRL ("pendiente de evidencias")
+      if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
+        // Si a SYMA le falta algo en el flujo final, regresa a PRL para corregir acciones.
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
-              { nombre: { contains: "pendiente de evidencias", mode: "insensitive" } },
+              { id_estado: 9 },
+              { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } },
               { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
             ],
           },
@@ -712,8 +754,9 @@ export const casoService = {
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
-              { nombre: { contains: "Rechazado por syma", mode: "insensitive" } },
-              { nombre: { contains: "Rechazado", mode: "insensitive" } },
+              { id_estado: 3 },
+              { nombre: { contains: "Pendiente de revision del responsable", mode: "insensitive" } },
+              { nombre: { contains: "responsable del proceso", mode: "insensitive" } },
             ],
           },
         });
@@ -751,7 +794,7 @@ export const casoService = {
             id_usuario_accion,
             id_estado_origen: idEstadoOrigen,
             id_estado_destino: idEstadoDestino,
-            accion: aprobado ? (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (pasoPorDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")) : (esRevisionEvidencias ? "SYMA_RECHAZAR_EVIDENCIAS" : "SYMA_RECHAZAR"),
+            accion: aprobado ? (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (vieneDeFormatoDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")) : (esRevisionEvidencias ? "SYMA_RECHAZAR_EVIDENCIAS" : "SYMA_RECHAZAR"),
             motivo: motivo || (aprobado ? (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada") : "Validación SYMA rechazada"),
             fecha: new Date(),
           },
@@ -779,13 +822,18 @@ export const casoService = {
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
 
-    // --- FILTRO: Validar que existan al menos 3 documentos adjuntos ---
+    const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
+    const estaEnFormatoDivulgacion = estadoActualNombre.includes("pendiente de formato de divulgacion");
+    const estaEnAccionesCorrectivas = estadoActualNombre.includes("acciones correctivas");
+    const minimoDocumentos = estaEnAccionesCorrectivas ? 0 : (estaEnFormatoDivulgacion ? 2 : 3);
+
+    // --- FILTRO: Validar documentos adjuntos segun fase del flujo ---
     const totalDocumentos = await prisma.documentos.count({
       where: { id_casi_accidente },
     });
 
-    if (totalDocumentos < 3) {
-      throw new AppError("Debe adjuntar al menos 3 archivos al caso antes de poder proceder.", 400);
+    if (minimoDocumentos > 0 && totalDocumentos < minimoDocumentos) {
+      throw new AppError(`Debe adjuntar al menos ${minimoDocumentos} archivos al caso antes de poder proceder.`, 400);
     }
     // -----------------------------------------------------------------
 
@@ -862,7 +910,9 @@ export const casoService = {
     
     return casos.filter((caso: any) => {
       const nombreEstado = normalizarTexto(caso.estados?.nombre || "");
-      return nombreEstado.includes("pendiente de evidencias") || 
+      return ESTADOS_ACCIONES_CORRECTIVAS.includes(Number(caso.id_estado)) ||
+             nombreEstado.includes("pendiente de evidencias") ||
+             nombreEstado.includes("evidencias en revision") ||
              nombreEstado.includes("acciones correctivas");
     });
   },
