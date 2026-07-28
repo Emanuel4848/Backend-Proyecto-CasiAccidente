@@ -49,32 +49,38 @@ export const casoRepository = {
     },
     id_usuario_accion: number
   ) {
-    return prisma.$transaction(async (tx) => {
-      const ahora = new Date();
+    return prisma.$transaction(
+      async (tx) => {
+        const ahora = new Date();
 
-      const caso = await tx.casi_accidentes.create({
-        data: {
-          ...data,
-          creado_en: ahora,
-          actualizado_en: ahora,
-        },
-        include: includeCatalogs,
-      });
+        const caso = await tx.casi_accidentes.create({
+          data: {
+            ...data,
+            creado_en: ahora,
+            actualizado_en: ahora,
+          },
+          include: includeCatalogs,
+        });
 
-      await tx.historial.create({
-        data: {
-          id_casi_accidente: caso.id_casi_accidente,
-          id_usuario_accion,
-          id_estado_origen: null,
-          id_estado_destino: caso.id_estado,
-          accion: "Creacion",
-          comentario: "Registro inicial del casi accidente",
-          fecha: ahora,
-        },
-      });
+        await tx.historial.create({
+          data: {
+            id_casi_accidente: caso.id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen: null,
+            id_estado_destino: caso.id_estado,
+            accion: "Creacion",
+            comentario: "Registro inicial del casi accidente",
+            fecha: ahora,
+          },
+        });
 
-      return caso;
-    });
+        return caso;
+      },
+      {
+        maxWait: 10000,
+        timeout: 15000,
+      }
+    );
   },
   findAll(filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
     return prisma.casi_accidentes.findMany({
@@ -95,37 +101,43 @@ export const casoRepository = {
   },
 
   update(id_casi_accidente: number, data: Record<string, unknown>) {
-  return prisma.casi_accidentes.update({
-    where: { id_casi_accidente },
-    data: { ...data, actualizado_en: new Date() },
-    include: includeCatalogs,
-  });
+    return prisma.casi_accidentes.update({
+      where: { id_casi_accidente },
+      data: { ...data, actualizado_en: new Date() },
+      include: includeCatalogs,
+    });
   },
 
   anular(id_casi_accidente: number, id_estado_origen: number, id_usuario_accion: number, motivo: string | null) {
-  return prisma.$transaction(async (tx) => {
-    const ahora = new Date();
+    return prisma.$transaction(
+      async (tx) => {
+        const ahora = new Date();
 
-    const caso = await tx.casi_accidentes.update({
-      where: { id_casi_accidente },
-      data: { id_estado: ESTADO_ANULADO_ID, actualizado_en: ahora },
-      include: includeCatalogs,
-    });
+        const caso = await tx.casi_accidentes.update({
+          where: { id_casi_accidente },
+          data: { id_estado: ESTADO_ANULADO_ID, actualizado_en: ahora },
+          include: includeCatalogs,
+        });
 
-    await tx.historial.create({
-      data: {
-        id_casi_accidente,
-        id_usuario_accion,
-        id_estado_origen,
-        id_estado_destino: ESTADO_ANULADO_ID,
-        accion: "Anulacion",
-        motivo: motivo ?? "Sin motivo especificado",
-        fecha: ahora,
+        await tx.historial.create({
+          data: {
+            id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen,
+            id_estado_destino: ESTADO_ANULADO_ID,
+            accion: "Anulacion",
+            motivo: motivo ?? "Sin motivo especificado",
+            fecha: ahora,
+          },
+        });
+
+        return caso;
       },
-    });
-
-    return caso;
-  });
+      {
+        maxWait: 10000,
+        timeout: 15000,
+      }
+    );
   },
 
   findUltimaAnulacion(id_casi_accidente: number) {
@@ -136,28 +148,34 @@ export const casoRepository = {
   },
 
   reactivar(id_casi_accidente: number, id_estado_destino: number, id_usuario_accion: number) {
-    return prisma.$transaction(async (tx) => {
-      const ahora = new Date();
+    return prisma.$transaction(
+      async (tx) => {
+        const ahora = new Date();
 
-      const caso = await tx.casi_accidentes.update({
-        where: { id_casi_accidente },
-        data: { id_estado: id_estado_destino, actualizado_en: ahora },
-        include: includeCatalogs,
-      });
+        const caso = await tx.casi_accidentes.update({
+          where: { id_casi_accidente },
+          data: { id_estado: id_estado_destino, actualizado_en: ahora },
+          include: includeCatalogs,
+        });
 
-      await tx.historial.create({
-        data: {
-          id_casi_accidente,
-          id_usuario_accion,
-          id_estado_origen: ESTADO_ANULADO_ID,
-          id_estado_destino,
-          accion: "Reactivacion",
-          comentario: "Caso reactivado, restaurado al estado previo a la anulacion",
-          fecha: ahora,
-        },
-      });
+        await tx.historial.create({
+          data: {
+            id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen: ESTADO_ANULADO_ID,
+            id_estado_destino,
+            accion: "Reactivacion",
+            comentario: "Caso reactivado, restaurado al estado previo a la anulacion",
+            fecha: ahora,
+          },
+        });
 
-      return caso;
-    });
+        return caso;
+      },
+      {
+        maxWait: 10000,
+        timeout: 15000,
+      }
+    );
   },
 };
