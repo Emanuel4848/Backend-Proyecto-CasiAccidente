@@ -37,13 +37,20 @@ async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, 
         return esSuCreador || esSuPrl || (esReportado && esDeSuRegion);
       });
 
-    case 4:
-      return casos.filter(
-        (caso: any) =>
-          caso.id_usuario_responsable === user.id_usuario ||
-          (procesosPermitidos.length > 0 && procesosPermitidos.includes(caso.id_proceso)) ||
-          (regionesPermitidas.length > 0 && regionesPermitidas.includes(caso.id_region))
-      );
+    case 4: // ROL_RESPONSABLE_PROCESO
+      return casos.filter((caso: any) => {
+        const esSuResponsable = caso.id_usuario_responsable === user.id_usuario;
+        
+        const tieneAsignacionProceso = procesosPermitidos.length > 0 && procesosPermitidos.includes(caso.id_proceso);
+        const tieneAsignacionRegion = regionesPermitidas.length > 0 && regionesPermitidas.includes(caso.id_region);
+        const sinAsignacionesRestrictivas = procesosPermitidos.length === 0 && regionesPermitidas.length === 0;
+
+        // El estado debe pertenecer a la fase del responsable
+        const estadoNombre = caso.estados?.nombre?.toLowerCase() || "";
+        const esFaseResponsable = estadoNombre.includes("responsable") || estadoNombre.includes("acciones");
+
+        return esSuResponsable || ((tieneAsignacionProceso || tieneAsignacionRegion || sinAsignacionesRestrictivas) && esFaseResponsable);
+      });
 
     case 5: 
     case 6: 
@@ -411,13 +418,41 @@ export const casoService = {
       throw new AppError("El caso ya ha sido evaluado o no se encuentra en estado inicial", 409);
     }
 
-    const nombreEstadoDestino = procede ? "En Análisis" : "Rechazado";
-    const estadoDestino = await prisma.estados.findFirst({
-      where: { nombre: { contains: procede ? "Análisis" : "Rechazado", mode: "insensitive" } },
-    });
+    let estadoDestino = null;
+
+    if (procede) {
+      // Busca estados de proceso/análisis excluyendo explícitamente los de PRL
+      estadoDestino = await prisma.estados.findFirst({
+        where: {
+          AND: [
+            {
+              OR: [
+                { nombre: { contains: "Proceso", mode: "insensitive" } },
+                { nombre: { contains: "Analisis", mode: "insensitive" } },
+                { nombre: { contains: "Acciones", mode: "insensitive" } },
+              ],
+            },
+            {
+              NOT: { nombre: { contains: "PRL", mode: "insensitive" } },
+            },
+          ],
+        },
+      });
+    } else {
+      estadoDestino = await prisma.estados.findFirst({
+        where: {
+          OR: [
+            { nombre: { contains: "Rechazado", mode: "insensitive" } },
+            { nombre: { contains: "Rechazada", mode: "insensitive" } },
+          ],
+        },
+      });
+    }
 
     if (!estadoDestino) {
-      throw new AppError(`El estado de destino (${nombreEstadoDestino}) no está configurado en el sistema`, 500);
+      const todosLosEstados = await prisma.estados.findMany();
+      const nombresDisponibles = todosLosEstados.map(e => e.nombre).join(", ");
+      throw new AppError(`No se encontró el estado de destino para (${procede ? "Procedente" : "Rechazado"}). Estados disponibles en BD: [${nombresDisponibles}]`, 500);
     }
 
     const idEstadoOrigen = caso.id_estado as number;
