@@ -137,23 +137,18 @@ export const casoController = {
     }
   },
 
-  async getBandeja(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      if (!req.user) throw new AppError("No autenticado", 401);
-      
-      const { id_region, id_estado, id_brigada } = req.query;
-      const filters = {
-        id_region: id_region ? Number(id_region) : undefined,
-        id_estado: id_estado ? Number(id_estado) : undefined,
-        id_brigada: id_brigada ? Number(id_brigada) : undefined,
-      };
+async getBandeja(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = (req as any).user; 
 
-      const data = await casoService.getBandeja(req.user, filters);
-      return res.json({ message: "Bandeja obtenida exitosamente", data });
-    } catch (error) {
-      next(error);
-    }
-  },
+    // Pásale únicamente el user
+    const bandeja = await casoService.getBandeja(user);
+    
+    return res.json({ success: true, data: bandeja });
+  } catch (error) {
+    next(error);
+  }
+},
 
   async validarProcedencia(req: Request, res: Response, next: NextFunction) {
     try {
@@ -198,4 +193,50 @@ export const casoController = {
       next(error);
     }
   },
+
+  async gestionarResponsable(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const id_usuario = (req as any).user.id_usuario;
+      const { accion, motivo } = req.body;
+      const resultado = await casoService.gestionarResponsable(id, id_usuario, accion, motivo);
+      res.json({ success: true, data: resultado });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async gestionarSyma(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const id_usuario = (req as any).user.id_usuario;
+      const { aprobado, motivo } = req.body;
+      const resultado = await casoService.gestionarSyma(id, id_usuario, aprobado, motivo);
+      res.json({ success: true, data: resultado });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAccionesCorrectivas(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = (req as any).user;
+      const resultado = await casoService.getAccionesCorrectivas(user);
+      res.json({ success: true, data: resultado });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async gestionarPrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = Number(req.params.id);
+    const id_usuario = (req as any).user.id_usuario;
+    const { motivo } = req.body;
+    const resultado = await casoService.gestionarPrl(id, id_usuario, motivo);
+    res.json({ success: true, data: resultado });
+  } catch (error) {
+    next(error);
+  }
+},
 };

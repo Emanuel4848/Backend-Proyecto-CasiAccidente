@@ -93,11 +93,43 @@ export const casoRepository = {
       include: includeCatalogs,
     });
   },
-  findById(id_casi_accidente: number) {
-    return prisma.casi_accidentes.findUnique({
+  
+  async findById(id_casi_accidente: number) {
+    const caso = await prisma.casi_accidentes.findUnique({
       where: { id_casi_accidente },
-      include: includeCatalogs,
+      include: {
+        ...includeCatalogs,
+        historial: {
+          include: {
+            usuarios: true,
+            estados_historial_id_estado_origenToestados: true,
+            estados_historial_id_estado_destinoToestados: true,
+          },
+          orderBy: { fecha: "asc" },
+        },
+      },
     });
+
+    if (!caso) return null;
+
+    return {
+      ...caso,
+      historial_estados: (caso.historial || []).map((h: any) => {
+        const nombreEstado = h.estados_historial_id_estado_destinoToestados?.nombre || 'Actualizado';
+        
+        return {
+          id_historial: h.id_historial,
+          accion: h.accion,
+          // Mapeamos los campos que tu HTML está esperando:
+          estado: nombreEstado, 
+          comentario: h.motivo || h.comentario || '',
+          fecha: h.fecha,
+          usuario: h.usuarios?.nombre || h.usuarios?.correo || `Usuario #${h.id_usuario_accion}`,
+          estado_origen: h.estados_historial_id_estado_origenToestados?.nombre || 'Estado inicial',
+          estado_destino: nombreEstado,
+        };
+      }),
+    };
   },
 
   update(id_casi_accidente: number, data: Record<string, unknown>) {

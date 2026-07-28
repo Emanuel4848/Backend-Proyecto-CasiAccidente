@@ -7,64 +7,69 @@ const ESTADO_REPORTADO_ID = 1;
 const ESTADOS_EDITABLES = [5, 7, 8, 9, 10]; 
 const ESTADO_ANULADO_ID = 14;
 
+// Helper para normalizar textos (quita tildes y pasa a minúsculas para comparaciones exactas)
+function normalizarTexto(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, casos: any[]) {
+  // PROTECCIÓN CRÍTICA: Si no hay usuario o rol, no se muestra nada por seguridad
+  if (!user || !user.id_rol) {
+    return [];
+  }
+
   const asignaciones = await prisma.usuario_asignacion.findMany({
     where: { id_usuario: user.id_usuario, activo: true },
   });
 
-  const regionesPermitidas = asignaciones
-    .map((a) => a.id_region)
-    .filter((r): r is number => r !== null);
-  const procesosPermitidos = asignaciones
-    .map((a) => a.id_proceso)
-    .filter((p): p is number => p !== null);
+  const coincideEstado = (caso: any, estadosBuscados: string[]) => {
+    const nombreEstado = normalizarTexto(caso.estados?.nombre || "");
+    return estadosBuscados.some((e) => nombreEstado.includes(normalizarTexto(e)));
+  };
 
-  switch (user.id_rol) {
-    case 2:
-      return casos.filter(
-        (caso: any) =>
-          caso.id_usuario_creacion === user.id_usuario ||
-          (regionesPermitidas.length > 0 && regionesPermitidas.includes(caso.id_region))
+  switch (Number(user.id_rol)) {
+    case 2: // ROL_BRIGADA
+      return casos.filter((caso: any) => caso.id_estado === ESTADO_REPORTADO_ID);
+
+    case 3: // ROL_PRL_CONTRATISTA
+      return casos.filter((caso: any) =>
+        caso.id_estado === ESTADO_REPORTADO_ID ||
+        coincideEstado(caso, [
+          "reportado",
+          "pendiente de formato de divulgacion",
+        ])
       );
 
-    case 3: 
-      return casos.filter((caso: any) => {
-        const esSuCreador = caso.id_usuario_creacion === user.id_usuario;
-        const esSuPrl = caso.id_usuario_prl === user.id_usuario;
-        const esReportado = caso.id_estado === 1; // Estado Reportado (recién creado por brigada)
-        const esDeSuRegion = regionesPermitidas.length === 0 || regionesPermitidas.includes(caso.id_region);
-
-        return esSuCreador || esSuPrl || (esReportado && esDeSuRegion);
-      });
-
     case 4: // ROL_RESPONSABLE_PROCESO
-      return casos.filter((caso: any) => {
-        const esSuResponsable = caso.id_usuario_responsable === user.id_usuario;
-        
-        const tieneAsignacionProceso = procesosPermitidos.length > 0 && procesosPermitidos.includes(caso.id_proceso);
-        const tieneAsignacionRegion = regionesPermitidas.length > 0 && regionesPermitidas.includes(caso.id_region);
-        const sinAsignacionesRestrictivas = procesosPermitidos.length === 0 && regionesPermitidas.length === 0;
+      return casos.filter((caso: any) =>
+        coincideEstado(caso, [
+          "pendiente de revision del responsable del proceso",
+          "aceptado / procede como casi accidente",
+          "pendiente de acciones correctivas",
+          "acciones correctivas"
+        ])
+      );
 
-        // El estado debe pertenecer a la fase del responsable
-        const estadoNombre = caso.estados?.nombre?.toLowerCase() || "";
-        const esFaseResponsable = estadoNombre.includes("responsable") || estadoNombre.includes("acciones");
-
-        return esSuResponsable || ((tieneAsignacionProceso || tieneAsignacionRegion || sinAsignacionesRestrictivas) && esFaseResponsable);
-      });
-
-    case 5: 
-    case 6: 
-      return casos.filter((caso: any) => {
-        const esSuSyma = caso.id_usuario_syma === user.id_usuario;
-        const esDeSuRegion = regionesPermitidas.length > 0 && regionesPermitidas.includes(caso.id_region);
-
-        const enFaseSyma = caso.id_estado >= 7;
-
-        return esSuSyma || (esDeSuRegion && enFaseSyma);
-      });
+    case 5:
+    case 6: // ROL_GESTOR_SYMA / ROL_GESTION_CONTROL_SYMA
+      return casos.filter((caso: any) =>
+        coincideEstado(caso, [
+          "pendiente de validacion syma",
+          "rechazado por syma",
+          "evidencias en revision",
+          "cerrado con acciones",
+        ])
+      );
 
     default:
-      return casos;
+      // Si es Administrador (ej. rol 1), permitimos ver los activos; de lo contrario, 0 casos.
+      if (Number(user.id_rol) === 1) {
+        return casos.filter((caso: any) => caso.id_estado !== ESTADO_ANULADO_ID);
+      }
+      return [];
   }
 }
 
@@ -118,12 +123,55 @@ export const casoService = {
     return filtrarCasosPorRol(user, casos);
   },
 
-  async getBandeja(
-    user: { id_usuario: number; id_rol: number; id_region?: number },
-    filters: { id_region?: number; id_estado?: number; id_brigada?: number }
-  ) {
-    const casos = await casoRepository.findAll(filters);
-    return filtrarCasosPorRol(user, casos);
+  async getBandeja(user: { id_usuario: number; id_rol: number }) {
+    // Si no hay usuario o rol válido, no devolvemos nada por seguridad
+    if (!user || !user.id_rol) {
+      return [];
+    }
+
+    let estadosPermitidos: number[] = [];
+
+    // Definimos los IDs exactos de estado que puede ver cada rol en su bandeja
+    switch (Number(user.id_rol)) {
+      case 2: // ROL_BRIGADA: Solo ve los reportes iniciales nuevos
+        estadosPermitidos = [1]; 
+        break;
+
+      case 3: // ROL_PRL_CONTRATISTA: Ve los nuevos (1) y los pendientes de divulgación
+        estadosPermitidos = [1, 7, 9]; // Ajusta estos IDs según los números reales de tus estados en BD
+        break;
+
+      case 4: // ROL_RESPONSABLE_PROCESO: Ve su bandeja de revisión y seguimiento
+        estadosPermitidos = [2, 3, 4, 8]; // Ajusta según tus IDs de estados de proceso
+        break;
+
+      case 5:
+      case 6: // ROL_GESTOR_SYMA / ROL_GESTION_CONTROL_SYMA: Validaciones y cierre
+        estadosPermitidos = [4, 10, 11]; // Ajusta según tus IDs de SYMA
+        break;
+
+      default:
+        // Administrador u otros roles ven los casos activos (excluyendo anulados/cerrados si aplica)
+        if (Number(user.id_rol) === 1) {
+          return await casoRepository.findAll({});
+        }
+        return [];
+    }
+
+    // Consulta directa a Prisma: Cero filtros en memoria, rápido y blindado
+    return await prisma.casi_accidentes.findMany({
+      where: {
+        id_estado: { in: estadosPermitidos },
+      },
+      include: {
+        regiones: true,
+        procesos: true,
+        brigadas: true,
+        contratistas: true,
+        estados: true,
+      },
+      orderBy: { creado_en: "desc" },
+    });
   },
 
   async getById(id: number) {
@@ -421,7 +469,6 @@ export const casoService = {
     let estadoDestino = null;
 
     if (procede) {
-      // Busca estados de proceso/análisis excluyendo explícitamente los de PRL
       estadoDestino = await prisma.estados.findFirst({
         where: {
           AND: [
@@ -430,6 +477,7 @@ export const casoService = {
                 { nombre: { contains: "Proceso", mode: "insensitive" } },
                 { nombre: { contains: "Analisis", mode: "insensitive" } },
                 { nombre: { contains: "Acciones", mode: "insensitive" } },
+                { nombre: { contains: "Responsable", mode: "insensitive" } },
               ],
             },
             {
@@ -511,8 +559,292 @@ export const casoService = {
     }
   },
 
+  async gestionarResponsable(id: number, id_usuario_accion: number, accion: 'AVANZAR' | 'RECHAZAR' | 'ENVIAR_CIERRE' | 'ENVIAR_ACCIONES', motivo?: string) {
+    const id_casi_accidente = casoValidator.validateId(id);
+    const caso = await casoRepository.findById(id_casi_accidente);
+    if (!caso) throw new AppError("Caso no encontrado", 404);
+
+    let estadoDestino = null;
+    const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
+
+    if (accion === 'ENVIAR_CIERRE') {
+      // El Responsable manda el caso a SYMA para su validación final de evidencias
+      estadoDestino = await prisma.estados.findFirst({
+        where: {
+          OR: [
+            { nombre: { contains: "pendiente de validacion syma", mode: "insensitive" } },
+            { nombre: { contains: "evidencias en revision", mode: "insensitive" } },
+            { nombre: { contains: "gestion y control syma", mode: "insensitive" } },
+          ],
+        },
+      });
+    } else if (accion === 'ENVIAR_ACCIONES') {
+      // El Responsable manda el caso al PRL para acciones correctivas -> Estado: "pendiente de evidencias"
+      estadoDestino = await prisma.estados.findFirst({
+        where: {
+          OR: [
+            { nombre: { contains: "pendiente de evidencias", mode: "insensitive" } },
+            { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
+          ],
+        },
+      });
+    } else if (estadoActualNombre.includes("pendiente de revision del responsable del proceso")) {
+      estadoDestino = await prisma.estados.findFirst({
+        where: { nombre: { contains: "Pendiente de validacion syma", mode: "insensitive" } },
+      });
+    } else if (estadoActualNombre.includes("aceptado") || estadoActualNombre.includes("procede")) {
+      estadoDestino = await prisma.estados.findFirst({
+        where: { nombre: { contains: "Pendiente de formato de divulgacion", mode: "insensitive" } },
+      });
+    } else {
+      estadoDestino = await prisma.estados.findFirst({
+        where: { nombre: { contains: "Pendiente de formato de divulgacion", mode: "insensitive" } },
+      });
+    }
+
+    if (!estadoDestino) {
+      throw new AppError("El estado de destino para el responsable no está configurado en el sistema", 500);
+    }
+
+    const idEstadoOrigen = caso.id_estado as number;
+    const idEstadoDestino = estadoDestino.id_estado;
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const casoActualizado = await tx.casi_accidentes.update({
+          where: { id_casi_accidente },
+          data: {
+            id_estado: idEstadoDestino,
+            id_usuario_responsable: id_usuario_accion,
+            id_usuario_actual: id_usuario_accion,
+            actualizado_en: new Date(),
+          },
+        });
+
+        await tx.historial.create({
+          data: {
+            id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen: idEstadoOrigen,
+            id_estado_destino: idEstadoDestino,
+            accion: `RESPONSABLE_${accion}`,
+            motivo: motivo || `Gestión de responsable: Transición a ${estadoDestino.nombre}`,
+            fecha: new Date(),
+          },
+        });
+
+        return casoActualizado;
+      });
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Error en la transacción de responsable: ${error.message}`, 500);
+    }
+  },
+
+  // Gestión para el rol SYMA (Distingue entre revisión inicial, divulgación y validación final de evidencias)
+  async gestionarSyma(id: number, id_usuario_accion: number, aprobado: boolean, motivo?: string) {
+    const id_casi_accidente = casoValidator.validateId(id);
+    const caso = await casoRepository.findById(id_casi_accidente);
+    if (!caso) throw new AppError("Caso no encontrado", 404);
+
+    const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
+    const esRevisionEvidencias = estadoActualNombre.includes("validacion syma") || 
+                                  estadoActualNombre.includes("evidencias en revision");
+
+    // Verificamos en el historial si el caso ya pasó por el formato de divulgación
+    const historialRegistros = await prisma.historial.findMany({
+      where: { id_casi_accidente },
+      include: { estados_historial_id_estado_destinoToestados: true },
+    });
+
+    const pasoPorDivulgacion = historialRegistros.some((h: any) =>
+      (h.estados_historial_id_estado_destinoToestados?.nombre || '').toLowerCase().includes('divulgacion')
+    );
+
+    let estadoDestino = null;
+
+    if (aprobado) {
+      if (esRevisionEvidencias) {
+        // Si SYMA aprueba las evidencias finales -> CIERRA EL CASO CON ACCIONES
+        estadoDestino = await prisma.estados.findFirst({
+          where: {
+            OR: [
+              { nombre: { contains: "cerrado con acciones", mode: "insensitive" } },
+              { nombre: { contains: "cierre", mode: "insensitive" } },
+            ],
+          },
+        });
+      } else if (!pasoPorDivulgacion) {
+        // 1.ª Revisión: Lo devuelve al Responsable como Aceptado / Procede
+        estadoDestino = await prisma.estados.findFirst({
+          where: {
+            OR: [
+              { nombre: { contains: "Aceptado", mode: "insensitive" } },
+              { nombre: { contains: "Procede", mode: "insensitive" } },
+            ],
+          },
+        });
+      } else {
+        // 2.ª Revisión (Tras la divulgación): Se lo devuelve al Responsable notificando que FO.PG.SEG.04.03 está listo
+        estadoDestino = await prisma.estados.findFirst({
+          where: {
+            OR: [
+              { nombre: { contains: "acciones", mode: "insensitive" } },
+              { nombre: { contains: "gestion", mode: "insensitive" } },
+              { nombre: { contains: "cierre", mode: "insensitive" } },
+              { nombre: { contains: "divulgacion realizada", mode: "insensitive" } },
+            ],
+          },
+        });
+      }
+    } else {
+      if (esRevisionEvidencias) {
+        // Si a SYMA le falta algo en las evidencias -> LO REGRESA AL PRL ("pendiente de evidencias")
+        estadoDestino = await prisma.estados.findFirst({
+          where: {
+            OR: [
+              { nombre: { contains: "pendiente de evidencias", mode: "insensitive" } },
+              { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
+            ],
+          },
+        });
+      } else {
+        estadoDestino = await prisma.estados.findFirst({
+          where: {
+            OR: [
+              { nombre: { contains: "Rechazado por syma", mode: "insensitive" } },
+              { nombre: { contains: "Rechazado", mode: "insensitive" } },
+            ],
+          },
+        });
+      }
+    }
+
+    if (!estadoDestino) {
+      throw new AppError("El estado de destino SYMA no está configurado en el sistema", 500);
+    }
+
+    const idEstadoOrigen = caso.id_estado as number;
+    const idEstadoDestino = estadoDestino.id_estado;
+    const esCierre = normalizarTexto(estadoDestino?.nombre || "").includes("cerrado");
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const casoActualizado = await tx.casi_accidentes.update({
+          where: { id_casi_accidente },
+          data: {
+            id_estado: idEstadoDestino,
+            id_usuario_syma: id_usuario_accion,
+            id_usuario_actual: id_usuario_accion,
+            ...(esCierre ? { 
+              fecha_cierre: new Date(), 
+              id_usuario_cierre: id_usuario_accion,
+              tipo_cierre: "CIERRE_CON_ACCIONES" 
+            } : {}),
+            actualizado_en: new Date(),
+          },
+        });
+
+        await tx.historial.create({
+          data: {
+            id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen: idEstadoOrigen,
+            id_estado_destino: idEstadoDestino,
+            accion: aprobado ? (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (pasoPorDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")) : (esRevisionEvidencias ? "SYMA_RECHAZAR_EVIDENCIAS" : "SYMA_RECHAZAR"),
+            motivo: motivo || (aprobado ? (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada") : "Validación SYMA rechazada"),
+            fecha: new Date(),
+          },
+        });
+
+        await tx.bitacora.create({
+          data: {
+            accion: `Usuario ${id_usuario_accion} validó el caso ${caso.numero_caso} en fase SYMA`,
+            fecha_accion: new Date(),
+            casi_accidentes: { connect: { id_casi_accidente } },
+            usuarios: { connect: { id_usuario: id_usuario_accion } },
+          },
+        });
+
+        return casoActualizado;
+      });
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Error en la transacción SYMA: ${error.message}`, 500);
+    }
+  },
+
+  async gestionarPrl(id: number, id_usuario_accion: number, motivo?: string) {
+    const id_casi_accidente = casoValidator.validateId(id);
+    const caso = await casoRepository.findById(id_casi_accidente);
+    if (!caso) throw new AppError("Caso no encontrado", 404);
+
+    // --- FILTRO: Validar que existan al menos 3 documentos adjuntos ---
+    const totalDocumentos = await prisma.documentos.count({
+      where: { id_casi_accidente },
+    });
+
+    if (totalDocumentos < 3) {
+      throw new AppError("Debe adjuntar al menos 3 archivos al caso antes de poder proceder.", 400);
+    }
+    // -----------------------------------------------------------------
+
+    const estadoDestino = await prisma.estados.findFirst({
+      where: {
+        nombre: { contains: "Pendiente de revision del responsable del Proceso", mode: "insensitive" }
+      },
+    });
+
+    if (!estadoDestino) {
+      throw new AppError("El estado de destino para el responsable no está configurado en el sistema", 500);
+    }
+
+    const idEstadoOrigen = caso.id_estado as number;
+    const idEstadoDestino = estadoDestino.id_estado;
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const casoActualizado = await tx.casi_accidentes.update({
+          where: { id_casi_accidente },
+          data: {
+            id_estado: idEstadoDestino,
+            id_usuario_prl: id_usuario_accion,
+            id_usuario_actual: id_usuario_accion,
+            actualizado_en: new Date(),
+          },
+        });
+
+        await tx.historial.create({
+          data: {
+            id_casi_accidente,
+            id_usuario_accion,
+            id_estado_origen: idEstadoOrigen,
+            id_estado_destino: idEstadoDestino,
+            accion: "PRL_ENVIAR_RESPONSABLE",
+            motivo: motivo || "PRL envió el caso de vuelta al Responsable tras adjuntar archivos requeridos",
+            fecha: new Date(),
+          },
+        });
+
+        await tx.bitacora.create({
+          data: {
+            accion: `Usuario ${id_usuario_accion} envió el caso ${caso.numero_caso} de vuelta al Responsable`,
+            fecha_accion: new Date(),
+            casi_accidentes: { connect: { id_casi_accidente } },
+            usuarios: { connect: { id_usuario: id_usuario_accion } },
+          },
+        });
+
+        return casoActualizado;
+      });
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Error en la transacción PRL: ${error.message}`, 500);
+    }
+  },
+
   async contarBandeja(user: { id_usuario: number; id_rol: number; id_region?: number }) {
-    const casosBandeja = await this.getBandeja(user, {});
+    const casosBandeja = await this.getBandeja(user); // <-- Quita la coma y el {}
     const estadosPendientes = [1, 2, 3, 4, 7, 8, 9, 10, 11]; 
     const pendientes = casosBandeja.filter((c: any) => estadosPendientes.includes(c.id_estado));
     return pendientes.length;
@@ -523,5 +855,15 @@ export const casoService = {
       where: { activo: true },
       orderBy: { nombre: 'asc' },
     });
-  }
+  },
+
+  async getAccionesCorrectivas(user: { id_usuario: number; id_rol: number }) {
+    const casos = await casoRepository.findAll({});
+    
+    return casos.filter((caso: any) => {
+      const nombreEstado = normalizarTexto(caso.estados?.nombre || "");
+      return nombreEstado.includes("pendiente de evidencias") || 
+             nombreEstado.includes("acciones correctivas");
+    });
+  },
 };
