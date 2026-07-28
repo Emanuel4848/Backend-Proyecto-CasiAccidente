@@ -6,8 +6,7 @@ const service = new DocumentoService();
 
 export class DocumentoController {
 
-    async subir(req: AuthRequest, res: Response, next: NextFunction
-    ) {
+    async subir(req: AuthRequest, res: Response, next: NextFunction) {
         try {
             if (!req.user) {
                 return res.status(401).json({
@@ -16,20 +15,24 @@ export class DocumentoController {
                 });
             }
 
-            if (!req.file) {
+            const archivos = req.files as Express.Multer.File[];
+            if (!archivos || archivos.length === 0) {
                 return res.status(400).json({
                     success: false,
-                    message: "Debe seleccionar un archivo."
+                    message: "Debe seleccionar al menos un archivo."
                 });
             }
 
-            const documento = await service.subirDocumento(req.file, req.body, req.user!.id_usuario
+            const documentos = await service.subirDocumentos(
+                archivos, 
+                req.body, 
+                req.user!.id_usuario
             );
 
             return res.status(201).json({
                 success: true,
-                message: "Documento cargado correctamente.",
-                data: documento
+                message: "Documentos cargados correctamente.",
+                data: documentos
             });
 
         } catch (error) {
@@ -96,6 +99,24 @@ export class DocumentoController {
                 success: true,
                 message: "Documento eliminado correctamente."
             });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async obtenerPorNumeroCaso(
+        req: AuthRequest,
+        res: Response,
+        next: NextFunction
+    ) {
+        try {
+            const numeroCaso = req.params.numeroCaso as string;
+            const documentos = await service.obtenerPorNumeroCaso(numeroCaso);
+            return res.json({
+                success: true,
+                data: documentos
+            });
+
         } catch (error) {
             next(error);
         }
