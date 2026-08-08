@@ -10,6 +10,8 @@ router.get("/", usuarioController.getAll);
 router.get("/:id", usuarioController.getById);
 router.post("/", usuarioController.create);
 router.put("/:id", usuarioController.update);
+router.get("/:id/regiones", usuarioController.getRegiones);
+router.put("/:id/regiones", usuarioController.setRegiones);
 router.delete("/:id", usuarioController.remove);
 
 export default router;

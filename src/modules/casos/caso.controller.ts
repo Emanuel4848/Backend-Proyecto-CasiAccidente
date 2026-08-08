@@ -9,7 +9,7 @@ export const casoController = {
   async create(req: AuthRequest, res: Response) {
     try {
       if (!req.user) throw new AppError("No autenticado", 401);
-      const caso = await casoService.create(req.body, req.user.id_usuario);
+      const caso = await casoService.create(req.body, req.user);
       return res.status(201).json({ message: "Caso registrado exitosamente", data: caso });
     } catch (error) {
       if (error instanceof AppError) {

@@ -28,16 +28,31 @@ model acciones_correctivas {
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model brigadas {
-  id_brigada      Int               @id @default(autoincrement())
-  nombre          String?           @db.VarChar
-  id_region       Int?
-  id_proceso      Int?
-  id_contratista  Int?
-  activo          Boolean?
-  contratistas    contratistas?     @relation(fields: [id_contratista], references: [id_contratista], onDelete: NoAction, onUpdate: NoAction)
-  procesos        procesos?         @relation(fields: [id_proceso], references: [id_proceso], onDelete: NoAction, onUpdate: NoAction)
-  regiones        regiones?         @relation(fields: [id_region], references: [id_region], onDelete: NoAction, onUpdate: NoAction)
-  casi_accidentes casi_accidentes[]
+  id_brigada         Int                  @id @default(autoincrement())
+  nombre             String?              @db.VarChar
+  id_region          Int?
+  id_proceso         Int?
+  id_contratista     Int?
+  activo             Boolean?
+  contratistas       contratistas?        @relation(fields: [id_contratista], references: [id_contratista], onDelete: NoAction, onUpdate: NoAction)
+  procesos           procesos?            @relation(fields: [id_proceso], references: [id_proceso], onDelete: NoAction, onUpdate: NoAction)
+  regiones           regiones?            @relation(fields: [id_region], references: [id_region], onDelete: NoAction, onUpdate: NoAction)
+  casi_accidentes    casi_accidentes[]
+  brigada_asignacion brigada_asignacion[]
+}
+
+/// Vincula cada brigada con el PRL Contratista y el Responsable del Proceso que le corresponden.
+/// Se usa "activo" en vez de sobreescribir/borrar para conservar historial de asignaciones.
+model brigada_asignacion {
+  id_asignacion           Int       @id @default(autoincrement())
+  id_brigada              Int
+  id_usuario_prl          Int?
+  id_usuario_responsable  Int?
+  activo                  Boolean?  @default(true)
+  creado_en               DateTime? @default(now()) @db.Timestamp(6)
+  brigadas                brigadas  @relation(fields: [id_brigada], references: [id_brigada], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_prl            usuarios? @relation("brigada_asignacion_prl", fields: [id_usuario_prl], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_responsable    usuarios? @relation("brigada_asignacion_responsable", fields: [id_usuario_responsable], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
@@ -236,6 +251,8 @@ model usuarios {
   historial                                                            historial[]
   usuario_asignacion                                                   usuario_asignacion[]
   usuario_roles                                                        usuario_roles[]
+  brigada_asignacion_prl                                               brigada_asignacion[]   @relation("brigada_asignacion_prl")
+  brigada_asignacion_responsable                                       brigada_asignacion[]   @relation("brigada_asignacion_responsable")
   bitacora              bitacora[]
   cierres               cierres[]
   rechazos              rechazos[]

@@ -8,6 +8,12 @@ const ESTADOS_EDITABLES = [3, 5, 7, 8, 9, 10];
 const ESTADO_ANULADO_ID = 14;
 const ESTADOS_ACCIONES_CORRECTIVAS = [9, 10, 11];
 
+const ROL_ADMINISTRADOR = 1;
+const ROL_PRL_CONTRATISTA = 3;
+const ROL_RESPONSABLE_PROCESO = 4;
+const ROL_GESTOR_SYMA = 5;
+const ROL_GESTION_CONTROL_SYMA = 6;
+
 // Helper para normalizar textos (quita tildes y pasa a minúsculas para comparaciones exactas)
 function normalizarTexto(texto: string): string {
   return texto
@@ -16,15 +22,38 @@ function normalizarTexto(texto: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+// Devuelve las brigadas asignadas a un PRL (tabla brigada_asignacion, no usuario_asignacion)
+async function getBrigadasAsignadasPrl(id_usuario: number): Promise<number[]> {
+  const asignaciones = await prisma.brigada_asignacion.findMany({
+    where: { id_usuario_prl: id_usuario, activo: true },
+    select: { id_brigada: true },
+  });
+  return asignaciones.map((a) => a.id_brigada);
+}
+
+// Devuelve las brigadas asignadas a un Responsable del Proceso (tabla brigada_asignacion)
+async function getBrigadasAsignadasResponsable(id_usuario: number): Promise<number[]> {
+  const asignaciones = await prisma.brigada_asignacion.findMany({
+    where: { id_usuario_responsable: id_usuario, activo: true },
+    select: { id_brigada: true },
+  });
+  return asignaciones.map((a) => a.id_brigada);
+}
+
+// Devuelve las regiones asignadas a un usuario SYMA / Gestión y Control SYMA (tabla usuario_asignacion)
+async function getRegionesAsignadas(id_usuario: number): Promise<number[]> {
+  const asignaciones = await prisma.usuario_asignacion.findMany({
+    where: { id_usuario, activo: true },
+    select: { id_region: true },
+  });
+  return asignaciones.map((a) => a.id_region).filter((r): r is number => r !== null);
+}
+
 async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, casos: any[]) {
   // PROTECCIÓN CRÍTICA: Si no hay usuario o rol, no se muestra nada por seguridad
   if (!user || !user.id_rol) {
     return [];
   }
-
-  const asignaciones = await prisma.usuario_asignacion.findMany({
-    where: { id_usuario: user.id_usuario, activo: true },
-  });
 
   const coincideEstado = (caso: any, estadosBuscados: string[]) => {
     const nombreEstado = normalizarTexto(caso.estados?.nombre || "");
@@ -32,31 +61,33 @@ async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, 
   };
 
   switch (Number(user.id_rol)) {
-    case 2: // ROL_BRIGADA
-      return casos.filter((caso: any) => caso.id_estado === ESTADO_REPORTADO_ID);
-
-    case 3: // ROL_PRL_CONTRATISTA
+    case ROL_PRL_CONTRATISTA: {
+      const brigadasAsignadas = await getBrigadasAsignadasPrl(user.id_usuario);
       return casos.filter((caso: any) =>
-        caso.id_estado === ESTADO_REPORTADO_ID ||
-        coincideEstado(caso, [
-          "reportado",
-          "pendiente de formato de divulgacion",
-        ])
+        brigadasAsignadas.includes(caso.id_brigada) &&
+        (caso.id_estado === ESTADO_REPORTADO_ID ||
+          coincideEstado(caso, ["reportado", "pendiente de formato de divulgacion"]))
       );
+    }
 
-    case 4: // ROL_RESPONSABLE_PROCESO
+    case ROL_RESPONSABLE_PROCESO: {
+      const brigadasAsignadas = await getBrigadasAsignadasResponsable(user.id_usuario);
       return casos.filter((caso: any) =>
+        brigadasAsignadas.includes(caso.id_brigada) &&
         coincideEstado(caso, [
           "pendiente de revision del responsable del proceso",
           "aceptado / procede como casi accidente",
           "pendiente de acciones correctivas",
-          "acciones correctivas"
+          "acciones correctivas",
         ])
       );
+    }
 
-    case 5:
-    case 6: // ROL_GESTOR_SYMA / ROL_GESTION_CONTROL_SYMA
+    case ROL_GESTOR_SYMA:
+    case ROL_GESTION_CONTROL_SYMA: {
+      const regionesAsignadas = await getRegionesAsignadas(user.id_usuario);
       return casos.filter((caso: any) =>
+        regionesAsignadas.includes(caso.id_region) &&
         coincideEstado(caso, [
           "pendiente de validacion syma",
           "rechazado por syma",
@@ -64,26 +95,27 @@ async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, 
           "cerrado con acciones",
         ])
       );
+    }
+
+    case ROL_ADMINISTRADOR:
+      return casos.filter((caso: any) => caso.id_estado !== ESTADO_ANULADO_ID);
 
     default:
-      // Si es Administrador (ej. rol 1), permitimos ver los activos; de lo contrario, 0 casos.
-      if (Number(user.id_rol) === 1) {
-        return casos.filter((caso: any) => caso.id_estado !== ESTADO_ANULADO_ID);
-      }
+      // Cualquier rol no contemplado (ej. Brigada, que ya no debe tener acceso al sistema) no ve nada.
       return [];
   }
 }
 
 export const casoService = {
-  async create(data: unknown, id_usuario_creacion: number) {
+  async create(data: unknown, user: { id_usuario: number; id_rol: number }) {
     const validado = casoValidator.validateCreate(data as any);
+    const id_usuario_creacion = user.id_usuario;
 
     const brigada = await casoRepository.findBrigadaById(validado.id_brigada);
     if (!brigada) throw new AppError("La brigada indicada no existe");
 
     const id_region = validado.id_region ?? brigada.id_region;
     const id_proceso = validado.id_proceso ?? brigada.id_proceso;
-    const id_contratista = validado.id_contratista ?? brigada.id_contratista;
 
     if (!id_region) throw new AppError("No se pudo determinar la region ");
     if (!id_proceso) throw new AppError("No se pudo determinar el proceso ");
@@ -95,9 +127,23 @@ export const casoService = {
     if (!region) throw new AppError("La region indicada no existe");
     if (!proceso) throw new AppError("El proceso indicado no existe");
 
-    if (id_contratista) {
-      const contratista = await casoRepository.findContratistaById(id_contratista);
-      if (!contratista) throw new AppError("El contratista indicado no existe");
+    // Determinar el PRL del caso: si quien crea es PRL, se asigna a sí mismo (y debe pertenecer a la brigada).
+    // Si es Admin, se toma el PRL ya asignado a la brigada (si existe).
+    let id_usuario_prl: number | null = null;
+
+    if (Number(user.id_rol) === ROL_PRL_CONTRATISTA) {
+      const asignacion = await prisma.brigada_asignacion.findFirst({
+        where: { id_brigada: validado.id_brigada, id_usuario_prl: user.id_usuario, activo: true },
+      });
+      if (!asignacion) {
+        throw new AppError("No estás asignado como PRL de esta brigada, no puedes registrar el caso", 403);
+      }
+      id_usuario_prl = user.id_usuario;
+    } else {
+      const asignacionBrigada = await prisma.brigada_asignacion.findFirst({
+        where: { id_brigada: validado.id_brigada, activo: true },
+      });
+      id_usuario_prl = asignacionBrigada?.id_usuario_prl ?? null;
     }
 
     const year = new Date().getFullYear();
@@ -112,10 +158,10 @@ export const casoService = {
       id_region,
       id_proceso,
       id_brigada: validado.id_brigada,
-      id_contratista,
       id_estado: ESTADO_REPORTADO_ID,
       id_usuario_creacion,
       id_usuario_actual: id_usuario_creacion,
+      id_usuario_prl,
     }, id_usuario_creacion);
   },
 
@@ -131,47 +177,58 @@ export const casoService = {
       return [];
     }
 
+    const includeCompleto = {
+      regiones: true,
+      procesos: true,
+      brigadas: true,
+      contratistas: true,
+      estados: true,
+    };
+
+    // IDs exactos de estado que puede ver cada rol en su bandeja (ajustar si cambia el catálogo)
     let estadosPermitidos: number[] = [];
+    let filtroBrigada: number[] | null = null; // null = sin restricción por brigada (se filtra por otra vía)
+    let filtroRegion: number[] | null = null;
 
-    // Definimos los IDs exactos de estado que puede ver cada rol en su bandeja
     switch (Number(user.id_rol)) {
-      case 2: // ROL_BRIGADA: Solo ve los reportes iniciales nuevos
-        estadosPermitidos = [1]; 
-        break;
-
-      case 3: // ROL_PRL_CONTRATISTA: Ve los nuevos (1) y los pendientes de divulgación
+      case ROL_PRL_CONTRATISTA:
         estadosPermitidos = [1, 7, 9]; // Ajusta estos IDs según los números reales de tus estados en BD
+        filtroBrigada = await getBrigadasAsignadasPrl(user.id_usuario);
         break;
 
-      case 4: // ROL_RESPONSABLE_PROCESO: Ve su bandeja de revisión y seguimiento
+      case ROL_RESPONSABLE_PROCESO:
         estadosPermitidos = [2, 3, 4, 8]; // Ajusta según tus IDs de estados de proceso
+        filtroBrigada = await getBrigadasAsignadasResponsable(user.id_usuario);
         break;
 
-      case 5:
-      case 6: // ROL_GESTOR_SYMA / ROL_GESTION_CONTROL_SYMA: Validaciones y cierre
+      case ROL_GESTOR_SYMA:
+      case ROL_GESTION_CONTROL_SYMA:
         estadosPermitidos = [4, 10, 11]; // Ajusta según tus IDs de SYMA
+        filtroRegion = await getRegionesAsignadas(user.id_usuario);
         break;
+
+      case ROL_ADMINISTRADOR:
+        return await prisma.casi_accidentes.findMany({
+          include: includeCompleto,
+          orderBy: { creado_en: "desc" },
+        });
 
       default:
-        // Administrador u otros roles ven los casos activos (excluyendo anulados/cerrados si aplica)
-        if (Number(user.id_rol) === 1) {
-          return await casoRepository.findAll({});
-        }
+        // Cualquier rol no contemplado (ej. Brigada) no ve nada en la bandeja.
         return [];
     }
 
-    // Consulta directa a Prisma: Cero filtros en memoria, rápido y blindado
+    // Si el usuario no tiene ninguna brigada/región asignada, su bandeja está vacía (no error, 0 resultados)
+    if (filtroBrigada !== null && filtroBrigada.length === 0) return [];
+    if (filtroRegion !== null && filtroRegion.length === 0) return [];
+
     return await prisma.casi_accidentes.findMany({
       where: {
         id_estado: { in: estadosPermitidos },
+        ...(filtroBrigada !== null ? { id_brigada: { in: filtroBrigada } } : {}),
+        ...(filtroRegion !== null ? { id_region: { in: filtroRegion } } : {}),
       },
-      include: {
-        regiones: true,
-        procesos: true,
-        brigadas: true,
-        contratistas: true,
-        estados: true,
-      },
+      include: includeCompleto,
       orderBy: { creado_en: "desc" },
     });
   },

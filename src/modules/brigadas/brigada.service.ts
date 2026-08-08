@@ -1,11 +1,13 @@
 import { AppError } from "../../utils/app-error";
 import { brigadaRepository } from "./brigada.repository";
 import { brigadaValidator } from "./brigada.validator";
+import prisma from "../../config/prisma";
+
+const ROL_PRL_CONTRATISTA = 3;
+const ROL_RESPONSABLE_PROCESO = 4;
 
 type BrigadaData = {
   id_region?: number | null;
-  id_proceso?: number | null;
-  id_contratista?: number | null;
 };
 
 const validateRelations = async (data: BrigadaData) => {
@@ -13,17 +15,21 @@ const validateRelations = async (data: BrigadaData) => {
     const region = await brigadaRepository.findRegionById(data.id_region);
     if (!region || region.activo === false) throw new AppError("La region indicada no existe o esta inactiva");
   }
+};
 
-  if (data.id_proceso) {
-    const proceso = await brigadaRepository.findProcesoById(data.id_proceso);
-    if (!proceso || proceso.activo === false) throw new AppError("El proceso indicado no existe o esta inactivo");
+const validateRolesAsignacion = async (id_usuario_prl: number | null, id_usuario_responsable: number | null) => {
+  if (id_usuario_prl) {
+    const tieneRolPrl = await prisma.usuario_roles.findFirst({
+      where: { id_usuario: id_usuario_prl, id_rol: ROL_PRL_CONTRATISTA },
+    });
+    if (!tieneRolPrl) throw new AppError("El usuario indicado no tiene el rol de PRL Contratista", 400);
   }
 
-  if (data.id_contratista) {
-    const contratista = await brigadaRepository.findContratistaById(data.id_contratista);
-    if (!contratista || contratista.activo === false) {
-      throw new AppError("El contratista indicado no existe o esta inactivo");
-    }
+  if (id_usuario_responsable) {
+    const tieneRolResponsable = await prisma.usuario_roles.findFirst({
+      where: { id_usuario: id_usuario_responsable, id_rol: ROL_RESPONSABLE_PROCESO },
+    });
+    if (!tieneRolResponsable) throw new AppError("El usuario indicado no tiene el rol de Responsable del Proceso", 400);
   }
 };
 
@@ -43,7 +49,22 @@ export const brigadaService = {
   async create(data: unknown) {
     const validatedData = brigadaValidator.validateCreate(data as any);
     await validateRelations(validatedData);
-    return brigadaRepository.create(validatedData);
+    await validateRolesAsignacion(validatedData.id_usuario_prl, validatedData.id_usuario_responsable);
+
+    const brigada = await brigadaRepository.create({
+      nombre: validatedData.nombre,
+      id_region: validatedData.id_region,
+      activo: validatedData.activo,
+    });
+
+    if (validatedData.id_usuario_prl || validatedData.id_usuario_responsable) {
+      await brigadaRepository.setAsignacion(brigada.id_brigada, {
+        id_usuario_prl: validatedData.id_usuario_prl,
+        id_usuario_responsable: validatedData.id_usuario_responsable,
+      });
+    }
+
+    return brigadaRepository.findById(brigada.id_brigada);
   },
   async update(id: number, data: unknown) {
     const id_brigada = brigadaValidator.validateId(id);
@@ -51,7 +72,29 @@ export const brigadaService = {
     const brigada = await brigadaRepository.findById(id_brigada);
     if (!brigada) throw new AppError("Brigada no encontrada", 404);
     await validateRelations(validatedData);
-    return brigadaRepository.update(id_brigada, validatedData);
+
+    const tieneAsignacion =
+      validatedData.id_usuario_prl !== undefined || validatedData.id_usuario_responsable !== undefined;
+
+    if (tieneAsignacion) {
+      const actual = brigada.brigada_asignacion?.[0];
+      const id_usuario_prl =
+        validatedData.id_usuario_prl !== undefined ? validatedData.id_usuario_prl : actual?.id_usuario_prl ?? null;
+      const id_usuario_responsable =
+        validatedData.id_usuario_responsable !== undefined
+          ? validatedData.id_usuario_responsable
+          : actual?.id_usuario_responsable ?? null;
+
+      await validateRolesAsignacion(id_usuario_prl, id_usuario_responsable);
+      await brigadaRepository.setAsignacion(id_brigada, { id_usuario_prl, id_usuario_responsable });
+    }
+
+    const { id_usuario_prl, id_usuario_responsable, ...datosBrigada } = validatedData;
+    if (Object.keys(datosBrigada).length > 0) {
+      await brigadaRepository.update(id_brigada, datosBrigada);
+    }
+
+    return brigadaRepository.findById(id_brigada);
   },
   async remove(id: number) {
     const id_brigada = brigadaValidator.validateId(id);

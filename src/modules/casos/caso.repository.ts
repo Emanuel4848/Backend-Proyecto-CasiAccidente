@@ -42,10 +42,10 @@ export const casoRepository = {
       id_region: number;
       id_proceso: number;
       id_brigada: number;
-      id_contratista: number | null;
       id_estado: number;
       id_usuario_creacion: number;
       id_usuario_actual: number;
+      id_usuario_prl: number | null;
     },
     id_usuario_accion: number
   ) {

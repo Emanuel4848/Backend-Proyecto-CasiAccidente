@@ -45,6 +45,24 @@ export const usuarioController = {
       return handleError(error, res);
     }
   },
+
+  async getRegiones(req: Request, res: Response) {
+    try {
+      const data = await usuarioService.getRegiones(getIdParam(req));
+      return res.json({ message: "Regiones obtenidas exitosamente", data });
+    } catch (error) {
+      return handleError(error, res);
+    }
+  },
+
+  async setRegiones(req: Request, res: Response) {
+    try {
+      const data = await usuarioService.setRegiones(getIdParam(req), req.body);
+      return res.json({ message: "Regiones asignadas exitosamente", data });
+    } catch (error) {
+      return handleError(error, res);
+    }
+  },
 };
 
 const handleError = (error: unknown, res: Response) => {

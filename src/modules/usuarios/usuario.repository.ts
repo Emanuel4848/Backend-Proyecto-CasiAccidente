@@ -100,4 +100,36 @@ export const usuarioRepository = {
       include: includeRoles,
     });
   },
+
+  findRegionesAsignadas(id_usuario: number) {
+    return prisma.usuario_asignacion.findMany({
+      where: { id_usuario, activo: true },
+      include: { regiones: true },
+    });
+  },
+
+  async setRegiones(id_usuario: number, id_rol: number, ids_region: number[]) {
+    return prisma.$transaction(async (tx) => {
+      await tx.usuario_asignacion.updateMany({
+        where: { id_usuario, activo: true },
+        data: { activo: false },
+      });
+
+      if (ids_region.length === 0) return [];
+
+      await tx.usuario_asignacion.createMany({
+        data: ids_region.map((id_region) => ({
+          id_usuario,
+          id_rol,
+          id_region,
+          activo: true,
+        })),
+      });
+
+      return tx.usuario_asignacion.findMany({
+        where: { id_usuario, activo: true },
+        include: { regiones: true },
+      });
+    });
+  },
 };

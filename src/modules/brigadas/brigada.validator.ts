@@ -3,13 +3,13 @@ import { AppError } from "../../utils/app-error";
 type BrigadaInput = {
   nombre?: string;
   id_region?: number;
-  id_proceso?: number;
-  id_contratista?: number;
+  id_usuario_prl?: number | null;
+  id_usuario_responsable?: number | null;
   activo?: boolean;
 };
 
 const parseOptionalId = (value: unknown, field: string) => {
-  if (value === undefined || value === null || value === "") return null;
+  if (value === undefined || value === null || value === "" || value === 0) return null;
 
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw new AppError(`${field} debe ser un numero entero positivo`);
@@ -26,8 +26,8 @@ export const brigadaValidator = {
     return {
       nombre: data.nombre.trim(),
       id_region: parseOptionalId(data.id_region, "id_region"),
-      id_proceso: parseOptionalId(data.id_proceso, "id_proceso"),
-      id_contratista: parseOptionalId(data.id_contratista, "id_contratista"),
+      id_usuario_prl: parseOptionalId(data.id_usuario_prl, "id_usuario_prl"),
+      id_usuario_responsable: parseOptionalId(data.id_usuario_responsable, "id_usuario_responsable"),
       activo: data.activo ?? true,
     };
   },
@@ -38,9 +38,9 @@ export const brigadaValidator = {
       updateData.nombre = data.nombre.trim();
     }
     if (data.id_region !== undefined) updateData.id_region = parseOptionalId(data.id_region, "id_region") ?? undefined;
-    if (data.id_proceso !== undefined) updateData.id_proceso = parseOptionalId(data.id_proceso, "id_proceso") ?? undefined;
-    if (data.id_contratista !== undefined) {
-      updateData.id_contratista = parseOptionalId(data.id_contratista, "id_contratista") ?? undefined;
+    if (data.id_usuario_prl !== undefined) updateData.id_usuario_prl = parseOptionalId(data.id_usuario_prl, "id_usuario_prl");
+    if (data.id_usuario_responsable !== undefined) {
+      updateData.id_usuario_responsable = parseOptionalId(data.id_usuario_responsable, "id_usuario_responsable");
     }
     if (data.activo !== undefined) updateData.activo = Boolean(data.activo);
     if (Object.keys(updateData).length === 0) throw new AppError("No hay datos para actualizar");
