@@ -3,9 +3,23 @@ import prisma from "../../config/prisma";
 const includeCatalogs = {
   regiones: true,
   procesos: true,
-  brigadas: true,
+  brigadas: {
+    include: {
+      brigada_asignacion: {
+        where: { activo: true },
+        take: 1 as const,
+        include: {
+          usuarios_prl: { select: { id_usuario: true, nombre: true } },
+          usuarios_responsable: { select: { id_usuario: true, nombre: true } },
+        },
+      },
+    },
+  },
   contratistas: true,
   estados: true,
+  usuarios_casi_accidentes_id_usuario_prlTousuarios: {
+    select: { id_usuario: true, nombre: true, correo: true },
+  },
 };
 
 const ESTADO_ANULADO_ID = 14;

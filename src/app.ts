@@ -15,9 +15,7 @@ import historialRoutes from "./modules/historial/historial.routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 import accionesRoutes from "./modules/acciones-correctivas/accion-correctiva.routes";
 
-
 const app = express();
-app.use(errorMiddleware);
 
 app.use(cors());
 app.use(express.json());
@@ -41,5 +39,7 @@ app.use("/api/acciones-correctivas", accionCorrectivaRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/historial", historialRoutes);
 app.use("/api/acciones", accionesRoutes);
+
+app.use(errorMiddleware);
 
 export default app;

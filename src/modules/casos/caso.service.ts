@@ -180,9 +180,23 @@ export const casoService = {
     const includeCompleto = {
       regiones: true,
       procesos: true,
-      brigadas: true,
+      brigadas: {
+        include: {
+          brigada_asignacion: {
+            where: { activo: true },
+            take: 1 as const,
+            include: {
+              usuarios_prl: { select: { id_usuario: true, nombre: true } },
+              usuarios_responsable: { select: { id_usuario: true, nombre: true } },
+            },
+          },
+        },
+      },
       contratistas: true,
       estados: true,
+      usuarios_casi_accidentes_id_usuario_prlTousuarios: {
+        select: { id_usuario: true, nombre: true, correo: true },
+      },
     };
 
     // IDs exactos de estado que puede ver cada rol en su bandeja (ajustar si cambia el catálogo)
