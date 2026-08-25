@@ -1,10 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { env } from "./env";
 
-export const supabase = createClient(
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-    env.SUPABASE_URL,
+if (!supabaseUrl) {
+  throw new Error("CRÍTICO: La variable SUPABASE_URL no está configurada en Railway.");
+}
 
-    env.SUPABASE_SERVICE_ROLE_KEY
-
-);
+export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
