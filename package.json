@@ -10,6 +10,9 @@
     "start": "node dist/server.js",
     "seed": "node prisma/seed.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

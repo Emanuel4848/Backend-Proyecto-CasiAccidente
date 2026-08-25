@@ -22,7 +22,14 @@ app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Hola mundo",
+    message: "API Casi Accidentes funcionando",
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "backend-casi-accidentes",
   });
 });
 

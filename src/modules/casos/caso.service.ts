@@ -50,7 +50,7 @@ async function getRegionesAsignadas(id_usuario: number): Promise<number[]> {
 }
 
 async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, casos: any[]) {
-  // PROTECCIÓN CRÍTICA: Si no hay usuario o rol, no se muestra nada por seguridad
+  // PROTECCI�N CRÍTICA: Si no hay usuario o rol, no se muestra nada por seguridad
   if (!user || !user.id_rol) {
     return [];
   }
@@ -658,13 +658,12 @@ export const casoService = {
         },
       });
     } else if (accion === 'ENVIAR_CIERRE') {
-      // El Responsable manda el caso a SYMA para su validación final de evidencias
+      // El Responsable manda el caso a SYMA para la validacion final de evidencias.
       estadoDestino = await prisma.estados.findFirst({
         where: {
           OR: [
-            { nombre: { contains: "pendiente de validacion syma", mode: "insensitive" } },
+            { id_estado: 11 },
             { nombre: { contains: "evidencias en revision", mode: "insensitive" } },
-            { nombre: { contains: "gestion y control syma", mode: "insensitive" } },
           ],
         },
       });

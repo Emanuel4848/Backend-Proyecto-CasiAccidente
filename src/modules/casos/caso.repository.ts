@@ -9,8 +9,8 @@ const includeCatalogs = {
         where: { activo: true },
         take: 1 as const,
         include: {
-          usuarios_prl: { select: { id_usuario: true, nombre: true } },
-          usuarios_responsable: { select: { id_usuario: true, nombre: true } },
+          usuarios_prl: { select: { id_usuario: true, nombre: true, correo: true } },
+          usuarios_responsable: { select: { id_usuario: true, nombre: true, correo: true } },
         },
       },
     },
@@ -21,7 +21,6 @@ const includeCatalogs = {
     select: { id_usuario: true, nombre: true, correo: true },
   },
 };
-
 const ESTADO_ANULADO_ID = 14;
 
 export const casoRepository = {

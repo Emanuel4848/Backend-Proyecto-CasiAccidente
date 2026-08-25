@@ -2,10 +2,20 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+function requiredEnv(name: string) {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`Falta configurar la variable de entorno ${name}`);
+  }
+
+  return value;
+}
+
 export const env = {
-  DATABASE_URL: process.env.DATABASE_URL ?? "",
-  JWT_SECRET: process.env.JWT_SECRET ?? "",
+  DATABASE_URL: requiredEnv("DATABASE_URL"),
+  JWT_SECRET: requiredEnv("JWT_SECRET"),
   PORT: process.env.PORT ?? "3000",
-  SUPABASE_URL: process.env.SUPABASE_URL ?? "",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+  SUPABASE_URL: requiredEnv("SUPABASE_URL"),
+  SUPABASE_SERVICE_ROLE_KEY: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
 };
