@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { AuthRequest } from "../../middlewares/auth.middleware";
 import { AppError } from "../../utils/app-error";
 import { brigadaService } from "./brigada.service";
 
@@ -9,9 +10,9 @@ const handleError = (error: unknown, res: Response) => {
 };
 
 export const brigadaController = {
-  async getAll(req: Request, res: Response) {
+  async getAll(req: AuthRequest, res: Response) {
     const search = typeof req.query.q === "string" ? req.query.q : undefined;
-    const data = await brigadaService.getAll(search);
+    const data = await brigadaService.getAll(search, req.user?.id_usuario, req.user?.id_rol);
     return res.json({ message: "Brigadas obtenidas exitosamente", data });
   },
   async getCatalogos(_req: Request, res: Response) {

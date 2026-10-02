@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { casoController } from "./caso.controller";
+import { roleMiddleware } from "../../middlewares/role.middleware";
+import { ROLE_IDS } from "../../utils/role-ids";
 
 const router = Router();
 
@@ -19,9 +21,9 @@ router.patch("/:id/reactivar", casoController.reactivar);
 router.patch("/:id/rechazar", casoController.rechazar);
 router.patch("/:id/cerrar", casoController.cerrar);
 router.post("/:id/evaluar", casoController.evaluar);
-router.patch('/:id/procedencia', casoController.validarProcedencia);
-router.patch('/:id/responsable', casoController.gestionarResponsable);
-router.patch('/:id/syma', casoController.gestionarSyma);
-router.patch('/:id/prl', casoController.gestionarPrl);
+router.patch('/:id/procedencia', roleMiddleware(ROLE_IDS.PRL_CONTRATISTA), casoController.validarProcedencia);
+router.patch('/:id/responsable', roleMiddleware(ROLE_IDS.ADMINISTRADOR, ROLE_IDS.RESPONSABLE_PROCESO), casoController.gestionarResponsable);
+router.patch('/:id/syma', roleMiddleware(ROLE_IDS.GESTOR_SYMA, ROLE_IDS.GESTION_CONTROL_SYMA), casoController.gestionarSyma);
+router.patch('/:id/prl', roleMiddleware(ROLE_IDS.PRL_CONTRATISTA), casoController.gestionarPrl);
 
 export default router;

@@ -257,6 +257,18 @@ model usuarios {
   cierres               cierres[]
   rechazos              rechazos[]
   revisiones            revisiones[]
+  sesiones_activas      sesiones_activas[]
+}
+
+model sesiones_activas {
+  session_id String   @id @db.Uuid
+  id_usuario Int
+  creado_en  DateTime @default(now()) @db.Timestamp(6)
+  expira_en  DateTime @db.Timestamp(6)
+  usuarios   usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@index([id_usuario, creado_en])
+  @@index([expira_en])
 }
 
 model revisiones {

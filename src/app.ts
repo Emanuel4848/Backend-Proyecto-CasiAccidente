@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import authRoutes from "./modules/auth/auth.routes";
 import usuarioRoutes from "./modules/usuarios/usuario.routes";
 import rolRoutes from "./modules/roles/rol.routes";
@@ -17,8 +19,18 @@ import accionesRoutes from "./modules/acciones-correctivas/accion-correctiva.rou
 
 const app = express();
 
-app.use(cors());
+app.disable("x-powered-by");
+if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
+app.use(helmet());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    if (process.env.NODE_ENV !== "production" || !origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Origen no permitido"));
+  },
+}));
 app.use(express.json());
+app.use("/api", rateLimit({ windowMs: 60_000, limit: 150, standardHeaders: "draft-8", legacyHeaders: false }));
 
 app.get("/", (req, res) => {
   res.json({

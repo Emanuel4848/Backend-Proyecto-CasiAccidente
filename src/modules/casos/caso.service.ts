@@ -3,11 +3,11 @@ import { casoRepository } from "./caso.repository";
 import { casoValidator } from "./caso.validator";
 import prisma from "../../config/prisma";
 
-const ESTADO_REPORTADO_ID = 1;
 const ESTADOS_EDITABLES = [3, 5, 7, 8, 9, 10]; 
 const ESTADO_ANULADO_ID = 14;
 const ESTADOS_ACCIONES_CORRECTIVAS = [9, 10, 11];
 
+const ESTADO_REPORTADO_ID = 1;
 const ROL_ADMINISTRADOR = 1;
 const ROL_PRL_CONTRATISTA = 3;
 const ROL_RESPONSABLE_PROCESO = 4;
@@ -49,52 +49,36 @@ async function getRegionesAsignadas(id_usuario: number): Promise<number[]> {
   return asignaciones.map((a) => a.id_region).filter((r): r is number => r !== null);
 }
 
+async function asegurarAccesoCaso(user: { id_usuario: number; id_rol: number }, caso: any) {
+  const role = Number(user.id_rol);
+  if (role === ROL_ADMINISTRADOR) return;
+  if (role === ROL_PRL_CONTRATISTA && (await getBrigadasAsignadasPrl(user.id_usuario)).includes(Number(caso.id_brigada)) && ![12, 13, 14].includes(Number(caso.id_estado))) return;
+  if (role === ROL_RESPONSABLE_PROCESO && (await getBrigadasAsignadasResponsable(user.id_usuario)).includes(Number(caso.id_brigada)) && ![12, 13, 14].includes(Number(caso.id_estado))) return;
+  if ([ROL_GESTOR_SYMA, ROL_GESTION_CONTROL_SYMA].includes(role) && (await getRegionesAsignadas(user.id_usuario)).includes(Number(caso.id_region)) && ![12, 13, 14].includes(Number(caso.id_estado))) return;
+  throw new AppError("No tienes acceso a este caso", 403);
+}
+
 async function filtrarCasosPorRol(user: { id_usuario: number; id_rol: number }, casos: any[]) {
   // PROTECCI�N CRÍTICA: Si no hay usuario o rol, no se muestra nada por seguridad
   if (!user || !user.id_rol) {
     return [];
   }
 
-  const coincideEstado = (caso: any, estadosBuscados: string[]) => {
-    const nombreEstado = normalizarTexto(caso.estados?.nombre || "");
-    return estadosBuscados.some((e) => nombreEstado.includes(normalizarTexto(e)));
-  };
-
   switch (Number(user.id_rol)) {
     case ROL_PRL_CONTRATISTA: {
       const brigadasAsignadas = await getBrigadasAsignadasPrl(user.id_usuario);
-      return casos.filter((caso: any) =>
-        brigadasAsignadas.includes(caso.id_brigada) &&
-        (caso.id_estado === ESTADO_REPORTADO_ID ||
-          coincideEstado(caso, ["reportado", "pendiente de formato de divulgacion"]))
-      );
+      return casos.filter((caso: any) => brigadasAsignadas.includes(caso.id_brigada) && caso.id_estado !== ESTADO_ANULADO_ID);
     }
 
     case ROL_RESPONSABLE_PROCESO: {
       const brigadasAsignadas = await getBrigadasAsignadasResponsable(user.id_usuario);
-      return casos.filter((caso: any) =>
-        brigadasAsignadas.includes(caso.id_brigada) &&
-        coincideEstado(caso, [
-          "pendiente de revision del responsable del proceso",
-          "aceptado / procede como casi accidente",
-          "pendiente de acciones correctivas",
-          "acciones correctivas",
-        ])
-      );
+      return casos.filter((caso: any) => brigadasAsignadas.includes(caso.id_brigada) && caso.id_estado !== ESTADO_ANULADO_ID);
     }
 
     case ROL_GESTOR_SYMA:
     case ROL_GESTION_CONTROL_SYMA: {
       const regionesAsignadas = await getRegionesAsignadas(user.id_usuario);
-      return casos.filter((caso: any) =>
-        regionesAsignadas.includes(caso.id_region) &&
-        coincideEstado(caso, [
-          "pendiente de validacion syma",
-          "rechazado por syma",
-          "evidencias en revision",
-          "cerrado con acciones",
-        ])
-      );
+      return casos.filter((caso: any) => regionesAsignadas.includes(caso.id_region));
     }
 
     case ROL_ADMINISTRADOR:
@@ -166,9 +150,8 @@ export const casoService = {
   },
 
   async getAll(user: { id_usuario: number; id_rol: number }, filters: { id_region?: number; id_estado?: number; id_brigada?: number }) {
-    const casos = await casoRepository.findAll(filters);
-    const casosGestion = casos.filter((caso: any) => !ESTADOS_ACCIONES_CORRECTIVAS.includes(Number(caso.id_estado)));
-    return filtrarCasosPorRol(user, casosGestion);
+      const casos = await casoRepository.findAll(filters);
+    return filtrarCasosPorRol(user, casos);
   },
 
   async getBandeja(user: { id_usuario: number; id_rol: number }) {
@@ -199,25 +182,20 @@ export const casoService = {
       },
     };
 
-    // IDs exactos de estado que puede ver cada rol en su bandeja (ajustar si cambia el catálogo)
-    let estadosPermitidos: number[] = [];
     let filtroBrigada: number[] | null = null; // null = sin restricción por brigada (se filtra por otra vía)
     let filtroRegion: number[] | null = null;
 
     switch (Number(user.id_rol)) {
       case ROL_PRL_CONTRATISTA:
-        estadosPermitidos = [1, 7, 9]; // Ajusta estos IDs según los números reales de tus estados en BD
         filtroBrigada = await getBrigadasAsignadasPrl(user.id_usuario);
         break;
 
       case ROL_RESPONSABLE_PROCESO:
-        estadosPermitidos = [2, 3, 4, 8]; // Ajusta según tus IDs de estados de proceso
         filtroBrigada = await getBrigadasAsignadasResponsable(user.id_usuario);
         break;
 
       case ROL_GESTOR_SYMA:
       case ROL_GESTION_CONTROL_SYMA:
-        estadosPermitidos = [4, 10, 11]; // Ajusta según tus IDs de SYMA
         filtroRegion = await getRegionesAsignadas(user.id_usuario);
         break;
 
@@ -238,7 +216,7 @@ export const casoService = {
 
     return await prisma.casi_accidentes.findMany({
       where: {
-        id_estado: { in: estadosPermitidos },
+        id_estado: { notIn: [ESTADO_ANULADO_ID] },
         ...(filtroBrigada !== null ? { id_brigada: { in: filtroBrigada } } : {}),
         ...(filtroRegion !== null ? { id_region: { in: filtroRegion } } : {}),
       },
@@ -247,17 +225,19 @@ export const casoService = {
     });
   },
 
-  async getById(id: number) {
+  async getById(id: number, user: { id_usuario: number; id_rol: number }) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    await asegurarAccesoCaso(user, caso);
     return caso;
   },
 
-  async update(id: number, data: unknown) {
+  async update(id: number, data: unknown, user: { id_usuario: number; id_rol: number }) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    await asegurarAccesoCaso(user, caso);
 
     if (!ESTADOS_EDITABLES.includes(caso.id_estado as number)) {
       throw new AppError(`No se puede editar un caso en el estado actual (${caso.estados?.nombre})`, 403);
@@ -282,6 +262,10 @@ export const casoService = {
       if (!contratista) throw new AppError("El contratista indicado no existe");
     }
 
+    if (Number(user.id_rol) === ROL_PRL_CONTRATISTA && validado.id_brigada !== undefined) {
+      const brigadasAsignadas = await getBrigadasAsignadasPrl(user.id_usuario);
+      if (!brigadasAsignadas.includes(Number(validado.id_brigada))) throw new AppError("No tienes acceso a esta brigada", 403);
+    }
     return casoRepository.update(id_casi_accidente, validado);
   },
 
@@ -530,10 +514,11 @@ export const casoService = {
     }
   },
 
-  async validarProcedencia(id: number, id_usuario_accion: number, procede: boolean, motivo?: string) {
+  async validarProcedencia(id: number, id_usuario_accion: number, procede: boolean, motivo?: string, id_rol?: number) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    if (id_rol === ROL_PRL_CONTRATISTA && !(await getBrigadasAsignadasPrl(id_usuario_accion)).includes(Number(caso.id_brigada))) throw new AppError("No tienes asignada la brigada de este caso", 403);
 
     if (caso.id_estado !== ESTADO_REPORTADO_ID) {
       throw new AppError("El caso ya ha sido evaluado o no se encuentra en estado inicial", 409);
@@ -744,10 +729,19 @@ export const casoService = {
   },
 
   // Gestión para el rol SYMA (Distingue entre revisión inicial, divulgación y validación final de evidencias)
-  async gestionarSyma(id: number, id_usuario_accion: number, aprobado: boolean, motivo?: string) {
+  async gestionarSyma(
+    id: number,
+    user: { id_usuario: number; id_rol: number },
+    accion: "APROBAR" | "PROCEDE_SIN_ACCIONES" | "SOLICITAR_ACCIONES" | "RECHAZAR" | undefined,
+    aprobado?: boolean,
+    motivo?: string,
+  ) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    if (![ROL_GESTOR_SYMA, ROL_GESTION_CONTROL_SYMA].includes(Number(user.id_rol))) throw new AppError("Solo SYMA puede gestionar esta revisión", 403);
+    if (!(await getRegionesAsignadas(user.id_usuario)).includes(Number(caso.id_region))) throw new AppError("No tienes asignada la región de este caso", 403);
+    const id_usuario_accion = user.id_usuario;
 
     const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
     const esRevisionEvidencias = estadoActualNombre.includes("evidencias en revision");
@@ -772,9 +766,30 @@ export const casoService = {
       normalizarTexto(h.estados_historial_id_estado_destinoToestados?.nombre || '').includes("acciones correctivas")
     );
 
+    const requiereDecisionSegundaRevision = vieneDeFormatoDivulgacion && !esRevisionEvidencias && !pasoPorAccionesCorrectivas;
+    const decision = accion ?? (aprobado ? "APROBAR" : "RECHAZAR");
+    if (requiereDecisionSegundaRevision && !["PROCEDE_SIN_ACCIONES", "SOLICITAR_ACCIONES", "RECHAZAR"].includes(decision)) {
+      throw new AppError("Selecciona una decisión válida para la revisión SYMA", 400);
+    }
+    if (["PROCEDE_SIN_ACCIONES", "SOLICITAR_ACCIONES"].includes(decision) && !motivo?.trim()) {
+      throw new AppError("El comentario es obligatorio para esta decisión", 400);
+    }
+
     let estadoDestino = null;
 
-    if (aprobado) {
+    if (decision === "PROCEDE_SIN_ACCIONES") {
+      estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 12 }, { nombre: { contains: "cerrado sin acciones", mode: "insensitive" } }] } });
+    } else if (decision === "SOLICITAR_ACCIONES") {
+      estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 9 }, { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } }, { nombre: { contains: "acciones correctivas", mode: "insensitive" } }] } });
+    } else if (decision === "RECHAZAR" && requiereDecisionSegundaRevision) {
+      estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ nombre: { contains: "pendiente de revision del responsable", mode: "insensitive" } }, { nombre: { contains: "responsable del proceso", mode: "insensitive" } }] } });
+    } else if (decision === "RECHAZAR" || !aprobado) {
+      if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
+        estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 9 }, { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } }, { nombre: { contains: "acciones correctivas", mode: "insensitive" } }] } });
+      } else {
+        estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 3 }, { nombre: { contains: "pendiente de revision del responsable", mode: "insensitive" } }, { nombre: { contains: "responsable del proceso", mode: "insensitive" } }] } });
+      }
+    } else if (aprobado) {
       if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
         // Si SYMA aprueba el flujo final de acciones correctivas, cierra con acciones.
         estadoDestino = await prisma.estados.findFirst({
@@ -787,17 +802,6 @@ export const casoService = {
         });
       } else if (!vieneDeFormatoDivulgacion) {
         // 1.ª Revisión: Lo devuelve al Responsable como Aceptado / Procede
-        estadoDestino = await prisma.estados.findFirst({
-          where: {
-            OR: [
-              { id_estado: 6 },
-              { nombre: { contains: "Aceptado", mode: "insensitive" } },
-              { nombre: { contains: "Procede", mode: "insensitive" } },
-            ],
-          },
-        });
-      } else {
-        // 2.ª Revisión (Tras la divulgación): Se lo devuelve al Responsable notificando que FO.PG.SEG.04.03 está listo
         estadoDestino = await prisma.estados.findFirst({
           where: {
             OR: [
@@ -839,7 +843,7 @@ export const casoService = {
 
     const idEstadoOrigen = caso.id_estado as number;
     const idEstadoDestino = estadoDestino.id_estado;
-    const esCierre = normalizarTexto(estadoDestino?.nombre || "").includes("cerrado");
+    const esCierre = decision === "PROCEDE_SIN_ACCIONES" || decision === "APROBAR" && (esRevisionEvidencias || pasoPorAccionesCorrectivas);
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -852,7 +856,7 @@ export const casoService = {
             ...(esCierre ? { 
               fecha_cierre: new Date(), 
               id_usuario_cierre: id_usuario_accion,
-              tipo_cierre: "CIERRE_CON_ACCIONES" 
+              tipo_cierre: decision === "PROCEDE_SIN_ACCIONES" ? "CIERRE_SIN_ACCIONES" : "CIERRE_CON_ACCIONES"
             } : {}),
             actualizado_en: new Date(),
           },
@@ -864,18 +868,18 @@ export const casoService = {
             id_usuario_accion,
             id_estado_origen: idEstadoOrigen,
             id_estado_destino: idEstadoDestino,
-            accion: aprobado ? (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (vieneDeFormatoDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")) : (esRevisionEvidencias ? "SYMA_RECHAZAR_EVIDENCIAS" : "SYMA_RECHAZAR"),
-            motivo: motivo || (aprobado ? (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada") : "Validación SYMA rechazada"),
+            accion: decision === "PROCEDE_SIN_ACCIONES" ? "SYMA_PROCEDE_SIN_ACCIONES" : decision === "SOLICITAR_ACCIONES" ? "SYMA_SOLICITA_ACCIONES" : decision === "RECHAZAR" ? "SYMA_RECHAZAR" : (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (vieneDeFormatoDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")),
+            motivo: motivo?.trim() || (aprobado ? (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada") : "Validación SYMA rechazada"),
             fecha: new Date(),
           },
         });
 
         await tx.bitacora.create({
           data: {
-            accion: `Usuario ${id_usuario_accion} validó el caso ${caso.numero_caso} en fase SYMA`,
+            accion: `Usuario ${user.id_usuario} ejecutó ${decision} en el caso ${caso.numero_caso} durante la fase SYMA`,
             fecha_accion: new Date(),
             casi_accidentes: { connect: { id_casi_accidente } },
-            usuarios: { connect: { id_usuario: id_usuario_accion } },
+            usuarios: { connect: { id_usuario: user.id_usuario } },
           },
         });
 
@@ -891,6 +895,8 @@ export const casoService = {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    if (Number(caso.id_estado) !== 8 && !normalizarTexto(caso.estados?.nombre || "").includes("acciones correctivas")) throw new AppError("El caso no está pendiente de gestión por PRL", 409);
+    if (!(await getBrigadasAsignadasPrl(id_usuario_accion)).includes(Number(caso.id_brigada))) throw new AppError("No tienes asignada la brigada de este caso", 403);
 
     const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
     const estaEnFormatoDivulgacion = estadoActualNombre.includes("pendiente de formato de divulgacion");

@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { usuarioController } from "./usuario.controller";
+import { roleMiddleware } from "../../middlewares/role.middleware";
+import { ROLE_IDS } from "../../utils/role-ids";
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(roleMiddleware(ROLE_IDS.ADMINISTRADOR));
 
 router.get("/", usuarioController.getAll);
 router.get("/:id", usuarioController.getById);

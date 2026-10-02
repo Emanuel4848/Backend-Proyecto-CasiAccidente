@@ -348,16 +348,22 @@ export const dashboardRepository = {
 
     const durations = new Map<number | null, { nombre: string; horas: number[] }>();
     const now = new Date();
+    const normalizarEstado = (nombre: string) => nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const esTerminal = (nombre: string) => /cerrad|anulad|rechaz|resuelt|finaliz|complet/.test(normalizarEstado(nombre));
 
     for (let index = 0; index < rows.length; index += 1) {
       const current = rows[index];
-      const next = rows[index + 1];
-      const nextDate =
-        next?.id_casi_accidente === current.id_casi_accidente && next.fecha ? next.fecha : now;
+      const nombreEstado = current.estados_historial_id_estado_destinoToestados?.nombre ?? "Sin estado";
+      if (esTerminal(nombreEstado)) continue;
+      let siguienteIndice = index + 1;
+      while (siguienteIndice < rows.length && rows[siguienteIndice].id_casi_accidente === current.id_casi_accidente &&
+        esTerminal(rows[siguienteIndice].estados_historial_id_estado_destinoToestados?.nombre ?? "")) siguienteIndice += 1;
+      const siguiente = rows[siguienteIndice];
+      const nextDate = siguiente?.id_casi_accidente === current.id_casi_accidente && siguiente.fecha ? siguiente.fecha : now;
 
       const hours = (nextDate.getTime() - current.fecha!.getTime()) / 3600000;
       const stage = durations.get(current.id_estado_destino) ?? {
-        nombre: current.estados_historial_id_estado_destinoToestados?.nombre ?? "Sin estado",
+        nombre: nombreEstado,
         horas: [],
       };
 

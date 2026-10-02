@@ -2,21 +2,14 @@ import multer from "multer";
 
 const storage = multer.memoryStorage();
 
-const tiposPermitidos = [
-
-    "application/pdf",
-
-    "image/jpeg",
-
-    "image/png",
-
-    "application/vnd.ms-excel",
-
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
-    "text/plain"
-
-];
+const tiposPermitidos = new Map([
+    [".pdf", "application/pdf"],
+    [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"],
+    [".png", "image/png"],
+    [".xls", "application/vnd.ms-excel"],
+    [".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    [".txt", "text/plain"],
+]);
 
 export const upload = multer({
 
@@ -30,11 +23,14 @@ export const upload = multer({
 
     fileFilter(req, file, cb) {
 
-        if (tiposPermitidos.includes(file.mimetype)) {
+        const extension = file.originalname.slice(file.originalname.lastIndexOf(".")).toLowerCase();
+        if (tiposPermitidos.get(extension) === file.mimetype) {
             return cb(null, true);
         }
 
-        return cb(new Error(`Tipo recibido: ${file.mimetype}`));
+        const error = new Error("Tipo de archivo no permitido o extensión no coincide con su contenido");
+        Object.assign(error, { status: 400 });
+        return cb(error);
     }
 
 });

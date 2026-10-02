@@ -1,8 +1,8 @@
-import { Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import type { AuthRequest } from "../../middlewares/auth.middleware";
 import { casoService } from "./caso.service";
 import { AppError } from "../../utils/app-error";
-import { Request, NextFunction } from "express";
+import { ROLE_IDS } from "../../utils/role-ids";
 import prisma from "../../config/prisma";
 
 export const casoController = {
@@ -40,7 +40,8 @@ export const casoController = {
 
   async getById(req: AuthRequest, res: Response) {
     try {
-      const caso = await casoService.getById(Number(req.params.id));
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const caso = await casoService.getById(Number(req.params.id), req.user);
       return res.json({ message: "Caso obtenido exitosamente", data: caso });
     } catch (error) {
       if (error instanceof AppError) {
@@ -52,7 +53,8 @@ export const casoController = {
 
   async update(req: AuthRequest, res: Response) {
     try {
-      const caso = await casoService.update(Number(req.params.id), req.body);
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const caso = await casoService.update(Number(req.params.id), req.body, req.user);
       return res.json({ message: "Caso actualizado exitosamente", data: caso });
     } catch (error) {
       if (error instanceof AppError) return res.status(error.statusCode).json({ message: error.message });
@@ -150,20 +152,13 @@ async getBandeja(req: Request, res: Response, next: NextFunction) {
   }
 },
 
-  async validarProcedencia(req: Request, res: Response, next: NextFunction) {
+  async validarProcedencia(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const { procede, motivo } = req.body;
       
-      const reqAny = req as any;
-      const usuarioLogueado = reqAny.usuario || reqAny.user;
-      const id_usuario = usuarioLogueado?.id_usuario || usuarioLogueado?.id || req.body.id_usuario_accion;
-
-      if (!id_usuario) {
-        throw new AppError("No se encontró el usuario en la sesión", 401);
-      }
-
-      const resultado = await casoService.validarProcedencia(Number(id), Number(id_usuario), procede, motivo);
+      if (!req.user || req.user.id_rol !== ROLE_IDS.PRL_CONTRATISTA) throw new AppError("Solo PRL puede validar la procedencia", 403);
+      const resultado = await casoService.validarProcedencia(Number(id), req.user.id_usuario, procede, motivo, req.user.id_rol);
       res.json({ message: "Validación de procedencia registrada correctamente", data: resultado });
     } catch (error) {
       next(error);
@@ -194,10 +189,11 @@ async getBandeja(req: Request, res: Response, next: NextFunction) {
     }
   },
 
-  async gestionarResponsable(req: Request, res: Response, next: NextFunction) {
+  async gestionarResponsable(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);
-      const id_usuario = (req as any).user.id_usuario;
+      if (!req.user || (req.user.id_rol !== ROLE_IDS.ADMINISTRADOR && req.user.id_rol !== ROLE_IDS.RESPONSABLE_PROCESO)) throw new AppError("Solo el Responsable del Proceso puede gestionar este caso", 403);
+      const id_usuario = req.user.id_usuario;
       const { accion, motivo } = req.body;
       const resultado = await casoService.gestionarResponsable(id, id_usuario, accion, motivo);
       res.json({ success: true, data: resultado });
@@ -206,12 +202,12 @@ async getBandeja(req: Request, res: Response, next: NextFunction) {
     }
   },
 
-  async gestionarSyma(req: Request, res: Response, next: NextFunction) {
+  async gestionarSyma(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = Number(req.params.id);
-      const id_usuario = (req as any).user.id_usuario;
-      const { aprobado, motivo } = req.body;
-      const resultado = await casoService.gestionarSyma(id, id_usuario, aprobado, motivo);
+      if (!req.user) throw new AppError("No autenticado", 401);
+      const { accion, aprobado, motivo } = req.body;
+      const resultado = await casoService.gestionarSyma(id, req.user, accion, aprobado, motivo);
       res.json({ success: true, data: resultado });
     } catch (error) {
       next(error);
@@ -228,10 +224,11 @@ async getBandeja(req: Request, res: Response, next: NextFunction) {
     }
   },
 
-  async gestionarPrl(req: Request, res: Response, next: NextFunction) {
+  async gestionarPrl(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const id = Number(req.params.id);
-    const id_usuario = (req as any).user.id_usuario;
+    if (!req.user || req.user.id_rol !== ROLE_IDS.PRL_CONTRATISTA) throw new AppError("Solo PRL puede gestionar este caso", 403);
+    const id_usuario = req.user.id_usuario;
     const { motivo } = req.body;
     const resultado = await casoService.gestionarPrl(id, id_usuario, motivo);
     res.json({ success: true, data: resultado });

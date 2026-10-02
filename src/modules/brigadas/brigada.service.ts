@@ -2,8 +2,9 @@ import { AppError } from "../../utils/app-error";
 import { brigadaRepository } from "./brigada.repository";
 import { brigadaValidator } from "./brigada.validator";
 import prisma from "../../config/prisma";
+import { ROLE_IDS } from "../../utils/role-ids";
 
-const ROL_PRL_CONTRATISTA = 3;
+const ROL_PRL_CONTRATISTA = ROLE_IDS.PRL_CONTRATISTA;
 const ROL_RESPONSABLE_PROCESO = 4;
 
 type BrigadaData = {
@@ -34,8 +35,8 @@ const validateRolesAsignacion = async (id_usuario_prl: number | null, id_usuario
 };
 
 export const brigadaService = {
-  getAll(search?: string) {
-    return brigadaRepository.findAll({ search, take: search ? 20 : undefined });
+  getAll(search?: string, id_usuario?: number, id_rol?: number) {
+    return brigadaRepository.findAll({ search, take: search ? 20 : undefined, id_usuario_prl: id_rol === ROL_PRL_CONTRATISTA ? id_usuario : undefined });
   },
   getCatalogos() {
     return brigadaRepository.findCatalogos();

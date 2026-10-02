@@ -133,6 +133,9 @@ export const casoRepository = {
         return {
           id_historial: h.id_historial,
           accion: h.accion,
+          id_estado_origen: h.id_estado_origen,
+          id_estado_destino: h.id_estado_destino,
+          es_segunda_revision_syma: h.accion === "PRL_ENVIAR_RESPONSABLE" && Number(h.id_estado_origen) === 8,
           // Mapeamos los campos que tu HTML está esperando:
           estado: nombreEstado, 
           comentario: h.motivo || h.comentario || '',

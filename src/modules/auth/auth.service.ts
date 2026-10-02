@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "node:crypto";
 import { authRepository } from "./auth.repository";
 
 class AuthError extends Error {
@@ -21,6 +22,7 @@ export type AuthTokenPayload = {
   id_rol: number;
   correo: string;
   rol: string;
+  jti: string;
 };
 
 export const authService = {
@@ -53,16 +55,35 @@ export const authService = {
       throw new AuthError("JWT_SECRET no esta configurado", 500);
     }
 
+    const maxSessions = Math.max(1, Number(process.env.MAX_SESIONES_POR_USUARIO) || 3);
+    try {
+      await authRepository.removeExpiredSessions();
+      const active = await authRepository.findActiveSessions(user.id_usuario);
+      while (active.length >= maxSessions) {
+        const oldest = active.shift();
+        if (oldest) await authRepository.deleteSession(oldest.session_id);
+      }
+    } catch {
+      throw new AuthError("No se pudo iniciar sesión por un problema de almacenamiento", 503);
+    }
+    const sessionId = randomUUID();
+
     const payload: AuthTokenPayload = {
       id_usuario: user.id_usuario,
       id_rol: userRol.roles.id_rol,
       correo: user.correo,
       rol: userRol.roles.nombre,
+      jti: sessionId,
     };
 
     const token = jwt.sign(payload, jwtSecret, {
       expiresIn: "8h",
     });
+    try {
+      await authRepository.createSession(sessionId, user.id_usuario, new Date(Date.now() + 8 * 60 * 60 * 1000));
+    } catch {
+      throw new AuthError("No se pudo registrar la sesión. Verifica la migración de sesiones activas", 503);
+    }
 
     return {
       token,

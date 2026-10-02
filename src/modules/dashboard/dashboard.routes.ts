@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { dashboardController } from "./dashboard.controller";
+import { authMiddleware } from "../../middlewares/auth.middleware";
 
 const router = Router();
+router.use(authMiddleware);
 
 router.get("/health", (_req, res) => {
   res.json({ message: "Dashboard module ready" });

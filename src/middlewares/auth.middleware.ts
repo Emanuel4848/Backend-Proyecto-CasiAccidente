@@ -2,12 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { AuthTokenPayload } from "../modules/auth/auth.service";
 import { env } from "../config/env";
+import { authRepository } from "../modules/auth/auth.repository";
 
 export interface AuthRequest extends Request {
   user?: AuthTokenPayload;
 }
 
-export const authMiddleware = (
+export const authMiddleware = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -31,12 +32,21 @@ export const authMiddleware = (
 
   try {
     const decoded = jwt.verify(token, jwtSecret) as AuthTokenPayload;
+    if (!decoded.jti) return res.status(401).json({ message: "La sesión del token no es válida" });
+    let session;
+    try {
+      session = await authRepository.isSessionActive(decoded.jti);
+    } catch (error) {
+      return next(error);
+    }
+    if (!session) return res.status(401).json({ message: "La sesión expiró o fue cerrada" });
     req.user = decoded;
 
     return next();
-  } catch {
-    return res.status(401).json({
-      message: "Token invalido o expirado",
-    });
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ message: "Token invalido o expirado" });
+    }
+    return next(error);
   }
 };
