@@ -348,17 +348,13 @@ export const dashboardRepository = {
 
     const durations = new Map<number | null, { nombre: string; horas: number[] }>();
     const now = new Date();
-    const normalizarEstado = (nombre: string) => nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const esTerminal = (nombre: string) => /cerrad|anulad|rechaz|resuelt|finaliz|complet/.test(normalizarEstado(nombre));
+    const esTerminal = (nombre: string) => resolveOutcomeGroup(nombre, null) !== "En proceso";
 
     for (let index = 0; index < rows.length; index += 1) {
       const current = rows[index];
       const nombreEstado = current.estados_historial_id_estado_destinoToestados?.nombre ?? "Sin estado";
       if (esTerminal(nombreEstado)) continue;
-      let siguienteIndice = index + 1;
-      while (siguienteIndice < rows.length && rows[siguienteIndice].id_casi_accidente === current.id_casi_accidente &&
-        esTerminal(rows[siguienteIndice].estados_historial_id_estado_destinoToestados?.nombre ?? "")) siguienteIndice += 1;
-      const siguiente = rows[siguienteIndice];
+      const siguiente = rows[index + 1];
       const nextDate = siguiente?.id_casi_accidente === current.id_casi_accidente && siguiente.fecha ? siguiente.fecha : now;
 
       const hours = (nextDate.getTime() - current.fecha!.getTime()) / 3600000;

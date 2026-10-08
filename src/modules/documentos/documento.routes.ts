@@ -43,6 +43,7 @@ router.get(
 router.delete(
     "/:id",
     authMiddleware,
+    roleMiddleware(ROLE_IDS.ADMINISTRADOR, ROLE_IDS.PRL_CONTRATISTA),
     controller.eliminar.bind(controller)
 );
 

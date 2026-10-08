@@ -19,7 +19,9 @@ async function main() {
     if (i === 8) report('rate limit bloquea login después de 8 intentos', response.status === 429, `HTTP ${response.status}`);
   }
 
-  for (const [name, token] of [['sin token', '' ], ['token alterado', `${process.env.PRL_TOKEN || 'invalid'}.bad`], ['token expirado', process.env.EXPIRED_TOKEN || '']]) {
+  if (!process.env.EXPIRED_TOKEN) throw new Error('Falta EXPIRED_TOKEN para comprobar realmente un JWT expirado');
+
+  for (const [name, token] of [['sin token', '' ], ['token alterado', `${process.env.PRL_TOKEN || 'invalid'}.bad`], ['token expirado', process.env.EXPIRED_TOKEN]]) {
     const response = await request('/api/usuarios', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     report(`auth ${name} => 401`, response.status === 401, `HTTP ${response.status}`);
   }
@@ -34,6 +36,21 @@ async function main() {
     report(`IDOR ${method} caso de otra brigada bloqueado`, response.status === 403 || response.status === 404, `HTTP ${response.status}`);
   }
 
+  if (process.env.CASE_OWN_ID) {
+    const literal = "' OR '1'='1 <script>alert(1)</script>";
+    const update = await request(`/api/casos/${process.env.CASE_OWN_ID}`, {
+      method: 'PUT',
+      headers: json({ Authorization: `Bearer ${process.env.PRL_TOKEN || ''}` }),
+      body: JSON.stringify({ titulo: literal, descripcion: literal }),
+    });
+    const updatedBody = await update.json().catch(() => null);
+    report(
+      'Prisma conserva payload de inyección como texto literal',
+      update.status === 200 && updatedBody?.data?.titulo === literal,
+      `HTTP ${update.status}`,
+    );
+  }
+
   const form = new FormData();
   form.append('archivos', new Blob(['<?php echo 1; ?>'], { type: 'application/pdf' }), 'forged.php');
   const upload = await request('/api/documentos', { method: 'POST', headers: { Authorization: `Bearer ${process.env.PRL_TOKEN || ''}` }, body: form });
@@ -41,7 +58,9 @@ async function main() {
 
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
-  const front = path.resolve(process.cwd(), '../Frontend-Proyecto-CasiAccidentes/src');
+  const front = process.env.FRONTEND_SRC
+    ? path.resolve(process.env.FRONTEND_SRC)
+    : path.resolve(process.cwd(), '../FrontendCasiAccidente/Frontend-Proyecto-CasiAccidentes/src');
   let unsafe = false;
   try {
     const files = [];

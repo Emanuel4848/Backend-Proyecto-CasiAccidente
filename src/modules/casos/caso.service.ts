@@ -617,10 +617,13 @@ export const casoService = {
     }
   },
 
-  async gestionarResponsable(id: number, id_usuario_accion: number, accion: 'AVANZAR' | 'RECHAZAR' | 'ENVIAR_CIERRE' | 'ENVIAR_ACCIONES' | 'CERRAR_SIN_ACCIONES', motivo?: string) {
+  async gestionarResponsable(id: number, id_usuario_accion: number, accion: 'AVANZAR' | 'RECHAZAR' | 'ENVIAR_CIERRE', motivo?: string) {
     const id_casi_accidente = casoValidator.validateId(id);
     const caso = await casoRepository.findById(id_casi_accidente);
     if (!caso) throw new AppError("Caso no encontrado", 404);
+    if (!["AVANZAR", "RECHAZAR", "ENVIAR_CIERRE"].includes(accion)) {
+      throw new AppError("Acción de Responsable no válida", 400);
+    }
 
     let estadoDestino = null;
     const estadoActualNombre = normalizarTexto(caso.estados?.nombre || "");
@@ -632,34 +635,17 @@ export const casoService = {
       Number(h.id_estado_destino) === 9 ||
       normalizarTexto(h.estados_historial_id_estado_destinoToestados?.nombre || "").includes("acciones correctivas")
     );
+    if (accion === "ENVIAR_CIERRE" && !pasoPorAccionesCorrectivas) {
+      throw new AppError("El caso todavía no cuenta con acciones correctivas para enviar a SYMA", 409);
+    }
 
-    if (accion === 'CERRAR_SIN_ACCIONES') {
-      estadoDestino = await prisma.estados.findFirst({
-        where: {
-          OR: [
-            { id_estado: 12 },
-            { nombre: { contains: "cerrado sin acciones", mode: "insensitive" } },
-          ],
-        },
-      });
-    } else if (accion === 'ENVIAR_CIERRE') {
+    if (accion === 'ENVIAR_CIERRE') {
       // El Responsable manda el caso a SYMA para la validacion final de evidencias.
       estadoDestino = await prisma.estados.findFirst({
         where: {
           OR: [
             { id_estado: 11 },
             { nombre: { contains: "evidencias en revision", mode: "insensitive" } },
-          ],
-        },
-      });
-    } else if (accion === 'ENVIAR_ACCIONES') {
-      // El Responsable manda el caso al PRL para acciones correctivas.
-      estadoDestino = await prisma.estados.findFirst({
-        where: {
-          OR: [
-            { id_estado: 9 },
-            { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } },
-            { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
           ],
         },
       });
@@ -699,11 +685,6 @@ export const casoService = {
             id_estado: idEstadoDestino,
             id_usuario_responsable: id_usuario_accion,
             id_usuario_actual: id_usuario_accion,
-            ...(accion === 'CERRAR_SIN_ACCIONES' ? {
-              fecha_cierre: new Date(),
-              id_usuario_cierre: id_usuario_accion,
-              tipo_cierre: "CIERRE_SIN_ACCIONES",
-            } : {}),
             actualizado_en: new Date(),
           },
         });
@@ -767,11 +748,17 @@ export const casoService = {
     );
 
     const requiereDecisionSegundaRevision = vieneDeFormatoDivulgacion && !esRevisionEvidencias && !pasoPorAccionesCorrectivas;
-    const decision = accion ?? (aprobado ? "APROBAR" : "RECHAZAR");
+    const decision = accion ?? (aprobado === true ? "APROBAR" : aprobado === false ? "RECHAZAR" : undefined);
+    if (!decision) {
+      throw new AppError("Selecciona una decisión para la revisión SYMA", 400);
+    }
     if (requiereDecisionSegundaRevision && !["PROCEDE_SIN_ACCIONES", "SOLICITAR_ACCIONES", "RECHAZAR"].includes(decision)) {
       throw new AppError("Selecciona una decisión válida para la revisión SYMA", 400);
     }
-    if (["PROCEDE_SIN_ACCIONES", "SOLICITAR_ACCIONES"].includes(decision) && !motivo?.trim()) {
+    if (!requiereDecisionSegundaRevision && ["PROCEDE_SIN_ACCIONES", "SOLICITAR_ACCIONES"].includes(decision)) {
+      throw new AppError("Esta decisión solo está disponible durante la revisión del formato de divulgación", 409);
+    }
+    if (decision !== "APROBAR" && !motivo?.trim()) {
       throw new AppError("El comentario es obligatorio para esta decisión", 400);
     }
 
@@ -781,15 +768,13 @@ export const casoService = {
       estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 12 }, { nombre: { contains: "cerrado sin acciones", mode: "insensitive" } }] } });
     } else if (decision === "SOLICITAR_ACCIONES") {
       estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 9 }, { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } }, { nombre: { contains: "acciones correctivas", mode: "insensitive" } }] } });
-    } else if (decision === "RECHAZAR" && requiereDecisionSegundaRevision) {
-      estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ nombre: { contains: "pendiente de revision del responsable", mode: "insensitive" } }, { nombre: { contains: "responsable del proceso", mode: "insensitive" } }] } });
-    } else if (decision === "RECHAZAR" || !aprobado) {
+    } else if (decision === "RECHAZAR") {
       if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
         estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 9 }, { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } }, { nombre: { contains: "acciones correctivas", mode: "insensitive" } }] } });
       } else {
         estadoDestino = await prisma.estados.findFirst({ where: { OR: [{ id_estado: 3 }, { nombre: { contains: "pendiente de revision del responsable", mode: "insensitive" } }, { nombre: { contains: "responsable del proceso", mode: "insensitive" } }] } });
       }
-    } else if (aprobado) {
+    } else if (decision === "APROBAR") {
       if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
         // Si SYMA aprueba el flujo final de acciones correctivas, cierra con acciones.
         estadoDestino = await prisma.estados.findFirst({
@@ -808,29 +793,6 @@ export const casoService = {
               { id_estado: 6 },
               { nombre: { contains: "Aceptado", mode: "insensitive" } },
               { nombre: { contains: "Procede", mode: "insensitive" } },
-            ],
-          },
-        });
-      }
-    } else {
-      if (esRevisionEvidencias || pasoPorAccionesCorrectivas) {
-        // Si a SYMA le falta algo en el flujo final, regresa a PRL para corregir acciones.
-        estadoDestino = await prisma.estados.findFirst({
-          where: {
-            OR: [
-              { id_estado: 9 },
-              { nombre: { contains: "pendiente de acciones correctivas", mode: "insensitive" } },
-              { nombre: { contains: "acciones correctivas", mode: "insensitive" } },
-            ],
-          },
-        });
-      } else {
-        estadoDestino = await prisma.estados.findFirst({
-          where: {
-            OR: [
-              { id_estado: 3 },
-              { nombre: { contains: "Pendiente de revision del responsable", mode: "insensitive" } },
-              { nombre: { contains: "responsable del proceso", mode: "insensitive" } },
             ],
           },
         });
@@ -869,7 +831,7 @@ export const casoService = {
             id_estado_origen: idEstadoOrigen,
             id_estado_destino: idEstadoDestino,
             accion: decision === "PROCEDE_SIN_ACCIONES" ? "SYMA_PROCEDE_SIN_ACCIONES" : decision === "SOLICITAR_ACCIONES" ? "SYMA_SOLICITA_ACCIONES" : decision === "RECHAZAR" ? "SYMA_RECHAZAR" : (esRevisionEvidencias ? "SYMA_APROBAR_CIERRE" : (vieneDeFormatoDivulgacion ? "SYMA_APROBAR_DIVULGACION" : "SYMA_APROBAR_INICIAL")),
-            motivo: motivo?.trim() || (aprobado ? (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada") : "Validación SYMA rechazada"),
+            motivo: motivo?.trim() || (esRevisionEvidencias ? "SYMA aprobó las evidencias y cerró el caso con acciones" : "Validación SYMA aprobada"),
             fecha: new Date(),
           },
         });
